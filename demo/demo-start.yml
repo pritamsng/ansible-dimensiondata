@@ -1,0 +1,11 @@
+---
+  - name: Shutdown a DimensionData Host
+    hosts: localhost
+    vars:
+      server_ids:
+        - '7ee719e9-7ae9-480b-9f16-c6b5de03463c'
+    tasks:
+      - name: Shutdown host
+        didata:
+          state: running
+          server_ids: '{{ server_ids }}'
