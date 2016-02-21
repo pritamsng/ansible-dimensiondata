@@ -1,0 +1,20 @@
+---
+  - name: Create a DimensionData Host
+    hosts: localhost
+    vars:
+      vlan_id: bd6fbee5-17db-49f8-b1f5-3b213cea3061
+      network_domain_id: 423c4386-87b4-43c4-9604-88ae237bfc7f
+      image_id: dc4f5eac-841c-4c51-8185-f15bfaaebf39
+      admin_password: fakepass
+    tasks:
+      - name: Create host
+        didata:
+          state: present
+          name: '{{ name }}'
+          vlan_id: '{{ vlan_id }}'
+          network_domain_id: '{{ network_domain_id }}'
+          description: 'my new node'
+          image: 'RedHat 7 64-bit 2 CPU'
+          name: ansible-test-image
+          unique_names: yes
+          admin_password: '{{ admin_password }}'
