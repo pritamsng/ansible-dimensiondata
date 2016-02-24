@@ -5,7 +5,7 @@ module: didata
 short_description: create, terminate, start or stop an server in dimensiondata
 description:
     - Creates, terminates, starts or stops servers in the Dimension Data Cloud
-version_added: "1.9
+version_added: "1.9"
 options:
   state:
     description:
@@ -33,7 +33,7 @@ options:
     default: null
     aliases: []
   image_id:
-    desc:
+    description:
       - The image_id to provisiong with
     required: false
     default: null
@@ -106,17 +106,12 @@ author:
 
 EXAMPLES = '''
 # Note: These examples don't include authorization.  You can set these by exporting DIDATA_USER and DIDATA_PASSWORD environment variables like:
-
-export DIDATA_USER=<username>
-export DIDATA_PASSWORD=<password>
-
-# Note: You can also set region this way, the default is working in NA
-
-export DIDATA_REGION=<region>
+# export DIDATA_USER=<username>
+# export DIDATA_PASSWORD=<password>
 
 # Basic create node example
 
-didata:
+- didata:
     vlan_id: '{{ vlan_id }}'
     network_domain_id: '{{ network_domain_id }}'
     image: 'RedHat 7 64-bit 2 CPU'
