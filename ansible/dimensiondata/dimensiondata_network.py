@@ -28,10 +28,11 @@ try:
     HAS_LIBCLOUD = True
 except:
     HAS_LIBCLOUD = False
+import json
 
 DOCUMENTATION = '''
 ---
-module: ddc_network_domain
+module: dimensiondata_network
 short_description:
     - Create, update, and delete MCP 1.0 & 2.0 networks
 version_added: '2.1'
@@ -75,18 +76,18 @@ options:
 
 EXAMPLES = '''
 # Create an MCP 1.0 network
-- ddc_network:
+- dimensiondata_network:
     region: na
     location: NA5
     name: mynet
 # Create an MCP 2.0 network
-- ddc_network:
+- dimensiondata_network:
     region: na
     location: NA9
     name: mynet
     service_plan: ADVANCED
 # Delete a network
-- ddc_network:
+- dimensiondata_network:
     region: na
     location: NA1
     name: mynet
@@ -146,7 +147,7 @@ def network_obj_to_dict(network, version):
                                         country=network.location.country,
                                         driver=network.location.driver)
     else:
-        network_dict['privae_net'] = None
+        network_dict['private_net'] = None
         network_dict['multicast'] = None
         network_dict['status'] = network.status
         network_dict['location'] = network.location
@@ -163,6 +164,14 @@ def get_mcp_version(driver, location):
 
 def create_network(module, driver, mcp_version, location,
                    name, description, service_plan=None):
+
+    # Make sure service_plan argument is defined
+    if mcp_version == '2.0' and state == 'present' and \
+            'service_plan' not in module.params:
+        module.fail_json('service_plan required when creating netowrk and ' +
+                         'location is MCP 2.0')
+    service_plan = module.params['service_plan']
+
     # Create network
     try:
         if mcp_version == '1.0':
@@ -174,8 +183,8 @@ def create_network(module, driver, mcp_version, location,
                                                   description=description)
     except Exception as e:
         module.fail_json(msg="Failed to create new network: %s" % str(e))
-    module.exit_json(changed=True,
-                     msg=str(network_obj_to_dict(res, mcp_version)))
+    msg = json.dump(network_obj_to_dict(res, mcp_version))
+    module.exit_json(changed=True, msg=msg)
 
 
 def delete_network(module, driver, matched_network, mcp_version):
@@ -197,7 +206,9 @@ def delete_network(module, driver, matched_network, mcp_version):
 def main():
     module = AnsibleModule(
         argument_spec=dict(
-            region=dict(required=True, type='str'),
+            region=dict(default='na', choices=['na', 'eu', 'au', 'af', 'ap',
+                                               'latam', 'canada', 'canberra',
+                                               'id', 'in', 'il', 'sa']),
             location=dict(required=True, type='str'),
             name=dict(required=True, type='str'),
             description=dict(required=False, type='str'),
@@ -232,11 +243,6 @@ def main():
     # Get MCP API Version
     mcp_version = get_mcp_version(driver, location)
 
-    # Make sure service_plan argument is defined
-    if mcp_version == '2.0' and 'service_plan' not in module.params:
-        module.fail_json('service_plan required when location is MCP 2.0')
-    service_plan = module.params['service_plan']
-
     # Get network list
     if mcp_version == '1.0':
         networks = driver.list_networks(location=location)
@@ -253,11 +259,14 @@ def main():
                                          matched_network[0], mcp_version)))
         create_network(module, driver, mcp_version, location, name,
                        description, service_plan)
-    else:
+    elif state == 'absent':
         # Destroy network
         if matched_network:
             delete_network(module, driver, matched_network, mcp_version)
         else:
             module.exit_json(changed=False, msg="Network does not exist")
+    else:
+        fail_json(msg="Requested state was " +
+                  "'%s'. State must be 'absent' or 'failed'" % state)
 
 main()

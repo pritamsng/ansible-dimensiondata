@@ -1,0 +1,14 @@
+---
+- hosts: 127.0.0.1
+  connection: local
+  tasks:
+    - name: Create MCP 1.0 network
+      dimensiondata_network:
+        region: na
+        location: NA5
+        name: ansible-test1
+    - name: Create MCP 2.0 network
+      dimensiondata_network:
+        region: na
+        location: NA12
+        name: ansible-test2
