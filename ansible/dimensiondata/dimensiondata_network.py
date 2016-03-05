@@ -75,7 +75,7 @@ options:
       - Should the resource be present or absent.
     choices: [present, absent]
     default: present
-'''
+''' % str(dd_regions)
 
 EXAMPLES = '''
 # Create an MCP 1.0 network
