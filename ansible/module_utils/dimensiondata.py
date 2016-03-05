@@ -23,6 +23,7 @@
 import os
 import ConfigParser
 from os.path import expanduser
+from libcloud.common.dimensiondata import API_ENDPOINTS
 
 
 # -------------------------
@@ -65,3 +66,20 @@ def get_credentials():
 
     # Both found, return data
     return dict(user_id=user_id, key=key)
+
+
+# -------------------------
+# Get the list of available regions
+# whos vendor is Dimension Data.
+# -------------------------
+def get_dd_regions():
+    # Get endpoints
+    all_regions = API_ENDPOINTS.keys()
+
+    # filter to only DimensionData endpoints
+    region_list = filter(lambda i: i.startswith('dd-'), all_regions)
+
+    # Strip prefix
+    regions = [region[3:] for region in region_list]
+
+    return regions
