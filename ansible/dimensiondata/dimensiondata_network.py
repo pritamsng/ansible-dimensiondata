@@ -114,12 +114,8 @@ network:
             sample: "My network description"
         location:
             description: Datacenter location.
-            type: dictionary
-            sample:
-                id: NA3
-                name: US - West
-                country: US
-                driver: DimensionData
+            type: string
+            sample: NA3
         status:
             description: Network status. (MCP 2.0 only)
             type: string
