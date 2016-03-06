@@ -2,7 +2,7 @@
 - hosts: 127.0.0.1
   connection: local
   tasks:
-    - name: Create MCP 1.0 network
+    - name: Enable backups on a host
       dimensiondata_backup:
         server_ids:
           - '7ee719e9-7ae9-480b-9f16-c6b5de03463c'
