@@ -155,6 +155,12 @@ def get_image_id(client, module, location):
     return matched_images[0].id
 
 
+def node_to_node_obj(node):
+    node_obj = {}
+    node_obj['id'] = node.id
+    node_obj['ipv6'] = node.extra['ipv6']
+    return node_obj
+
 def create_node(client, module):
     changed = False
     name = module_key_die_if_none(module, 'name')
@@ -178,7 +184,8 @@ def create_node(client, module):
                        ex_network_domain=network_domain_id,
                        ex_vlan=vlan_id,
                        ex_memory_gb=module.params['memory_gb'])
-    return (True, node.id)
+    node_obj = node_to_node_obj(node)
+    return (True, [node_obj])
 
 
 
