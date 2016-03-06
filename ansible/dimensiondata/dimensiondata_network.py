@@ -24,11 +24,11 @@ from ansible.module_utils.dimensiondatacloud import *
 try:
     from libcloud.compute.types import Provider
     from libcloud.compute.providers import get_driver
+    from libcloud.compute.base import NodeLocation
     import libcloud.security
     HAS_LIBCLOUD = True
 except:
     HAS_LIBCLOUD = False
-import json
 
 DOCUMENTATION = '''
 ---
@@ -114,12 +114,8 @@ network:
             sample: "My network description"
         location:
             description: Datacenter location.
-            type: dictionary
-            sample:
-                id: NA3
-                name: US - West
-                country: US
-                driver: DimensionData
+            type: string
+            sample: NA3
         status:
             description: Network status. (MCP 2.0 only)
             type: string
@@ -138,19 +134,19 @@ network:
 def network_obj_to_dict(network, version):
     network_dict = dict(id=network.id, name=network.name,
                         description=network.description)
+    if isinstance(network.location, NodeLocation):
+        network_dict['location'] = network.location.id
+    else:
+        network_dict['location'] = network.location
+
     if version == '1.0':
         network_dict['private_net'] = network.private_net
         network_dict['multicast'] = network.multicast
         network_dict['status'] = None
-        network_dict['location'] = dict(id=network.location.id,
-                                        name=network.location.name,
-                                        country=network.location.country,
-                                        driver=network.location.driver)
     else:
         network_dict['private_net'] = None
         network_dict['multicast'] = None
         network_dict['status'] = network.status
-        network_dict['location'] = network.location
     return network_dict
 
 
@@ -163,11 +159,10 @@ def get_mcp_version(driver, location):
 
 
 def create_network(module, driver, mcp_version, location,
-                   name, description, service_plan=None):
+                   name, description):
 
     # Make sure service_plan argument is defined
-    if mcp_version == '2.0' and state == 'present' and \
-            'service_plan' not in module.params:
+    if mcp_version == '2.0' and 'service_plan' not in module.params:
         module.fail_json('service_plan required when creating netowrk and ' +
                          'location is MCP 2.0')
     service_plan = module.params['service_plan']
@@ -183,8 +178,9 @@ def create_network(module, driver, mcp_version, location,
                                                   description=description)
     except Exception as e:
         module.fail_json(msg="Failed to create new network: %s" % str(e))
-    msg = json.dump(network_obj_to_dict(res, mcp_version))
-    module.exit_json(changed=True, msg=msg)
+    msg = "Created network %s in %s" % (name, location)
+    network = network_obj_to_dict(res, mcp_version)
+    module.exit_json(changed=True, msg=msg, network=network)
 
 
 def delete_network(module, driver, matched_network, mcp_version):
@@ -216,7 +212,7 @@ def main():
                               'ESSENTIALS']),
             state=dict(default='present', choices=['present', 'absent']),
             verify_ssl_cert=dict(required=False, default=True, type='bool')
-            )
+        )
     )
 
     if not HAS_LIBCLOUD:
@@ -225,7 +221,7 @@ def main():
     # set short vars for readability
     credentials = get_credentials()
     if credentials is False:
-        module.fail_json("User credentials not found")
+        module.fail_json(msg="User credentials not found")
     user_id = credentials['user_id']
     key = credentials['key']
     region = 'dd-%s' % module.params['region']
@@ -254,11 +250,13 @@ def main():
     if state == 'present':
         # Network already exists
         if matched_network:
-            module.exit_json(changed=False,
-                             network=str(network_obj_to_dict(
-                                         matched_network[0], mcp_version)))
+            module.exit_json(
+                changed=False,
+                msg="Network already exists",
+                network=network_obj_to_dict(matched_network[0], mcp_version)
+            )
         create_network(module, driver, mcp_version, location, name,
-                       description, service_plan)
+                       description)
     elif state == 'absent':
         # Destroy network
         if matched_network:
