@@ -1,29 +1,42 @@
 #!/usr/bin/python
+
+from ansible.module_utils.basic import *
+from ansible.module_utils.dimensiondatacloud import *
+try:
+    from libcloud.common.dimensiondata import DimensionDataAPIException
+    from libcloud.backup.drivers.dimensiondata import DimensionDataBackupDriver
+    import libcloud.security
+    HAS_LIBCLOUD = True
+except:
+    HAS_LIBCLOUD = False
+import time
+
 DOCUMENTATION = '''
 ---
 module: dimensiondata_backup
-short_description: enable or disable backups for a host
+short_description: Enable or Disable backups for a host.
 description:
-    - Creates, enables/disables backups for a host in the Dimension Data Cloud
+    - Creates, enables/disables backups for a host in the Dimension Data Cloud.
 version_added: "1.9"
 options:
   state:
     description:
-      - the state you want the hosts to be in
+      - The state you want the hosts to be in.
     required: false
     default: present
     aliases: []
     choices: ['present', 'absent']
   server_ids:
     description:
-      - A list of server ids to work on
+      - A list of server ids to work on.
     required: false
     default: null
     aliases: ['server_id']
   region:
     description:
       - The target region.
-    choices: ['na', 'eu', 'au', 'af', 'ap', 'latam', 'canada', 'canberra', 'id', 'in', 'il', 'sa']
+    choices: ['na', 'eu', 'au', 'af', 'ap', 'latam', 'canada',
+              'canberra', 'id', 'in', 'il', 'sa']
     default: na
   service_plan:
     description:
@@ -37,12 +50,13 @@ options:
     default: true
   wait:
     description:
-      - Should we wait for the task to complete before moving onto the next
+      - Should we wait for the task to complete before moving onto the next.
     required: false
     default: false
   wait_time:
     description:
-      - Only applicable if wait is true.  This is the amount of time in seconds to wait
+      - Only applicable if wait is true.
+        This is the amount of time in seconds to wait
     required: false
     default: 120
 
@@ -51,7 +65,8 @@ author:
 '''
 
 EXAMPLES = '''
-# Note: These examples don't include authorization.  You can set these by exporting DIDATA_USER and DIDATA_PASSWORD environment variables like:
+# Note: These examples don't include authorization.
+# You can set these by exporting DIDATA_USER and DIDATA_PASSWORD vars:
 # export DIDATA_USER=<username>
 # export DIDATA_PASSWORD=<password>
 
@@ -80,24 +95,13 @@ EXAMPLES = '''
 
 RETURN = '''
 servers:
-    description: list of servers this worked on
+    description: List of servers this worked on.
     returned: Always
     type: list
     contains: server_ids processed
 '''
 
-from ansible.module_utils.basic import *
-from ansible.module_utils.dimensiondatacloud import *
-try:
-    from libcloud.common.dimensiondata import DimensionDataAPIException
-    from libcloud.backup.drivers.dimensiondata import DimensionDataBackupDriver
-    import libcloud.security
-    HAS_LIBCLOUD = True
-except:
-    HAS_LIBCLOUD = False
-
 POLLING_INTERVAL = 2
-
 
 def handle_backups(module, client):
     changed = False
@@ -130,7 +134,7 @@ def handle_backups(module, client):
                 modify_backup_for_server(client, module,
                                          server_id, service_plan)
         else:
-            module.fail_json(msg="Unhandle state")
+            module.fail_json(msg="Unhandled state")
 
     module.exit_json(changed=changed, msg='Enabled host',
                      servers=module.params['server_ids'])
@@ -139,10 +143,11 @@ def handle_backups(module, client):
 def enable_backup_for_server(client, module, server_id, service_plan):
     extra = {'servicePlan': service_plan}
     client.create_target(None, server_id, extra=extra)
+    time.sleep(10)
     if module.params['wait'] is True:
         try:
             client.connection.wait_for_state(
-                'NORMA', client.ex_get_backup_details_for_target,
+                'NORMAL', client.ex_get_backup_details_for_target,
                 POLLING_INTERVAL, module.params['wait_time'], server_id
             )
         except DimensionDataAPIException as e:

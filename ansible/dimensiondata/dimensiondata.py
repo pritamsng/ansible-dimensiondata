@@ -159,6 +159,7 @@ def node_to_node_obj(node):
     node_obj = {}
     node_obj['id'] = node.id
     node_obj['ipv6'] = node.extra['ipv6']
+    node_obj['os_type'] = node.extra['OS_type']
     return node_obj
 
 def create_node(client, module):
@@ -167,7 +168,7 @@ def create_node(client, module):
     if module.params['unique_names']:
         node_list = client.list_nodes(ex_name=name)
         if len(node_list) >= 1:
-            return (changed, [node.id for node in node_list])
+            return (changed, [node_to_node_obj(node) for node in node_list])
 
     admin_password = module_key_die_if_none(module, 'admin_password')
     vlan_id = module_key_die_if_none(module, 'vlan_id')
@@ -188,7 +189,6 @@ def create_node(client, module):
     return (True, [node_obj])
 
 
-
 def stoporstart_servers(client, module, desired_state):
     changed = False
 
@@ -196,11 +196,7 @@ def stoporstart_servers(client, module, desired_state):
     node_list = []
     for server in servers:
         node = client.ex_get_node_by_id(server)
-        node_list.append({
-            'id': node.id,
-            'prev_state': node.state,
-            'desired_state': desired_state
-        })
+        node_list.append(node_to_node_obj(node))
         if node.state == 'terminated':
             node.state = 'stopped'
         if desired_state != node.state:
