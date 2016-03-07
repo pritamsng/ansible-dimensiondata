@@ -159,7 +159,7 @@ def handle_backup_client(module, client):
             server_clients_return[server_id] = \
                 _backup_client_obj_to_dict(backup_client)
         else:
-            module.fail_json(msg="Unhandle state")
+            module.fail_json(msg="Unhandled state")
 
     module.exit_json(changed=changed, msg='Success',
                      backups=server_clients_return)
