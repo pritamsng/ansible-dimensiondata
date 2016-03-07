@@ -1,4 +1,14 @@
 #!/usr/bin/python
+from ansible.module_utils.basic import *
+from ansible.module_utils.dimensiondatacloud import *
+try:
+    from libcloud.common.dimensiondata import DimensionDataAPIException
+    from libcloud.backup.drivers.dimensiondata import DimensionDataBackupDriver
+    import libcloud.security
+    HAS_LIBCLOUD = True
+except:
+    HAS_LIBCLOUD = False
+
 DOCUMENTATION = '''
 ---
 module: dimensiondata_backup
@@ -9,10 +19,9 @@ version_added: "1.9"
 options:
   state:
     description:
-      - the state you want the hosts to be in
+      - The state you want the hosts to be in.
     required: false
     default: present
-    aliases: []
     choices: ['present', 'absent']
   server_ids:
     description:
@@ -23,34 +32,42 @@ options:
   region:
     description:
       - The target region.
-    choices: ['na', 'eu', 'au', 'af', 'ap', 'latam', 'canada', 'canberra', 'id', 'in', 'il', 'sa']
+    choices: ['na', 'eu', 'au', 'af', 'ap', 'latam', 'canada',
+              'canberra', 'id', 'in', 'il', 'sa']
     default: na
   client_type:
     description:
       - The service plan for backups.
-    choices: [FA.Linux, PostgreSQL, MySQL]
+    choices: [FA.AD. FA.Linux, FA.Win, PostgreSQL, MySQL]
   verify_ssl_cert:
     description:
       - Check that SSL certificate is valid.
     required: false
     default: true
-  wait:
+  schedule_policy:
     description:
-      - Should we wait for the task to complete before moving onto the next
-    required: false
-    default: false
-  wait_time:
+      - The schedule policy for backups.
+    choices: [12AM - 6AM, 6AM - 12PM, 12PM - 6PM, 6PM - 12AM]
+  storage_policy:
     description:
-      - Only applicable if wait is true.  This is the amount of time in seconds to wait
-    required: false
-    default: 120
-
+      - The storage policy for backups.
+    choices: [14 Day Storage Policy, 30 Day Storage Policy, ect.]
+  notify_email:
+    description:
+      - The email to notify for a trigger.
+    default: nobody@example.com
+  notify_trigger:
+    description:
+      - When to send an email to the notify_email.
+    default: ON_FAILURE
+    choices: [ON_FAILURE, ON_SUCCESS]
 author:
     - "Jeff Dunham (@jadunham1)"
 '''
 
 EXAMPLES = '''
-# Note: These examples don't include authorization.  You can set these by exporting DIDATA_USER and DIDATA_PASSWORD environment variables like:
+# Note: These examples don't include authorization.
+# You can set these by exporting DIDATA_USER and DIDATA_PASSWORD vars:
 # export DIDATA_USER=<username>
 # export DIDATA_PASSWORD=<password>
 
@@ -85,16 +102,6 @@ servers:
     contains: server_ids processed
 '''
 
-from ansible.module_utils.basic import *
-from ansible.module_utils.dimensiondatacloud import *
-try:
-    from libcloud.common.dimensiondata import DimensionDataAPIException
-    from libcloud.backup.drivers.dimensiondata import DimensionDataBackupDriver
-    import libcloud.security
-    HAS_LIBCLOUD = True
-except:
-    HAS_LIBCLOUD = False
-
 
 def get_backup_client(details, client_type):
     if len(details.clients) > 0:
@@ -104,7 +111,7 @@ def get_backup_client(details, client_type):
     return None
 
 
-def _backup_client_to_obj(backup_client):
+def _backup_client_obj_to_dict(backup_client):
     backup_client_dict = {}
     backup_client_dict['id'] = backup_client.id
     backup_client_dict['client_type'] = backup_client.type.type
@@ -147,10 +154,10 @@ def handle_backup_client(module, client):
             backup_details = get_backup_details_for_host(client, server_id)
             backup_client = get_backup_client(backup_details, client_type)
             server_clients_return[server_id] = \
-                _backup_client_to_obj(backup_client)
+                _backup_client_obj_to_dict(backup_client)
         elif state == 'present' and backup_client is not None:
             server_clients_return[server_id] = \
-                _backup_client_to_obj(backup_client)
+                _backup_client_obj_to_dict(backup_client)
         else:
             module.fail_json(msg="Unhandle state")
 
@@ -218,7 +225,8 @@ def main():
             server_ids=dict(required=True, type='list',
                             aliases=['server_id']),
             client_type=dict(required=True,
-                             choices=['FA.Linux', 'MySQL', 'PostgreSQL']),
+                             choices=['FA.Win', 'FA.AD', 'FA.Linux',
+                                      'MySQL', 'PostgreSQL']),
             schedule_policy=dict(choices=['12AM - 6AM', '6AM - 12PM',
                                           '12PM - 6PM', '6PM - 12AM']),
             storage_policy=dict(choices=_storage_policy_choices()),
@@ -226,8 +234,6 @@ def main():
             notify_trigger=dict(required=False, default='ON_FAILURE',
                                 choices=['ON_FAILURE', 'ON_SUCCESS']),
             verify_ssl_cert=dict(required=False, default=True, type='bool'),
-            wait=dict(required=False, default=False, type='bool'),
-            wait_time=dict(required=False, default=120, type='int')
         )
     )
     if not HAS_LIBCLOUD:
