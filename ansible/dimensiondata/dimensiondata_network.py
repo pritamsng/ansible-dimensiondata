@@ -30,6 +30,9 @@ try:
 except:
     HAS_LIBCLOUD = False
 
+# Get regions early to use in docs etc.
+dd_regions = get_dd_regions()
+
 DOCUMENTATION = '''
 ---
 module: dimensiondata_network
@@ -41,7 +44,7 @@ options:
   region:
     description:
       - The target region.
-    choices: ['na', 'eu', 'au', 'af', 'ap', 'latam', 'canada', 'canberra', 'id', 'in', 'il', 'sa']
+    choices: %s
     default: na
   location:
     description:
@@ -72,7 +75,7 @@ options:
       - Should the resource be present or absent.
     choices: [present, absent]
     default: present
-'''
+''' % str(dd_regions)
 
 EXAMPLES = '''
 # Create an MCP 1.0 network
@@ -202,9 +205,7 @@ def delete_network(module, driver, matched_network, mcp_version):
 def main():
     module = AnsibleModule(
         argument_spec=dict(
-            region=dict(default='na', choices=['na', 'eu', 'au', 'af', 'ap',
-                                               'latam', 'canada', 'canberra',
-                                               'id', 'in', 'il', 'sa']),
+            region=dict(default='na', choices=dd_regions),
             location=dict(required=True, type='str'),
             name=dict(required=True, type='str'),
             description=dict(required=False, type='str'),
@@ -267,4 +268,5 @@ def main():
         fail_json(msg="Requested state was " +
                   "'%s'. State must be 'absent' or 'failed'" % state)
 
-main()
+if __name__ == '__main__':
+    main()
