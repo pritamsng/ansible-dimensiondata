@@ -21,7 +21,6 @@
 #
 # Common methods to be used by versious module components
 import os
-import re
 import ConfigParser
 from os.path import expanduser
 from libcloud.common.dimensiondata import API_ENDPOINTS
@@ -78,11 +77,9 @@ def get_dd_regions():
     all_regions = API_ENDPOINTS.keys()
 
     # filter to only DimensionData endpoints
-    filt = re.compile(r'^dd-')
-    region_list = filter(lambda i: filt.search(i), all_regions)
+    region_list = filter(lambda i: i.startswith('dd-'), all_regions)
 
     # Strip prefix
-    regions = [re.sub(r'^[a-z]+([0-9]+)?-', '', region)
-               for region in region_list]
+    regions = [region[3:] for region in region_list]
 
     return regions
