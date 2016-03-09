@@ -7,7 +7,7 @@
       admin_password: fakepass
     tasks:
       - name: Create host
-        didata:
+        dimensiondata:
           state: present
           vlan_id: '{{ vlan_id }}'
           network_domain_id: '{{ network_domain_id }}'

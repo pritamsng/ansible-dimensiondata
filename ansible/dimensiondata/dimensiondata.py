@@ -1,4 +1,18 @@
 #!/usr/bin/python
+from ansible.module_utils.basic import *
+from ansible.module_utils.dimensiondata import *
+
+HAS_LIBCLOUD = True
+try:
+    from libcloud.compute.types import Provider
+    from libcloud.compute.providers import get_driver
+    import libcloud.security
+except ImportError:
+    HAS_LIBCLOUD = False
+
+# Get regions early to use in docs etc.
+dd_regions = get_dd_regions()
+
 DOCUMENTATION = '''
 ---
 module: didata
@@ -7,6 +21,11 @@ description:
     - Creates, terminates, starts or stops servers in the Dimension Data Cloud
 version_added: "1.9"
 options:
+  region:
+    description:
+      - The target region.
+    choices: %s
+    default: na
   state:
     description:
       - the state you want the hosts to be in
@@ -94,18 +113,26 @@ options:
     aliases: []
   unique_names:
     description:
-      - By default Dimension Data allows the same name for multiple servers this will make sure we don't create a new server if the name already exists
+      - By default Dimension Data allows the same name for multiple servers
+        this will make sure we don't create a new server if the name
+        already exists
     required: false
     default: 'no'
     aliases: []
     choices: ['yes', 'no']
+  verify_ssl_cert:
+    description:
+      - Check that SSL certificate is valid.
+    required: false
+    default: true
 
 author:
     - "Jeff Dunham (@jadunham1)"
-'''
+''' % str(dd_regions)
 
 EXAMPLES = '''
-# Note: These examples don't include authorization.  You can set these by exporting DIDATA_USER and DIDATA_PASSWORD environment variables like:
+# Note: These examples don't include authorization.
+#       You can set these by exporting DIDATA_USER and DIDATA_PASSWORD var:
 # export DIDATA_USER=<username>
 # export DIDATA_PASSWORD=<password>
 
@@ -118,15 +145,7 @@ EXAMPLES = '''
     name: ansible-test-image
     admin_password: fakepass
 '''
-import os
-import json
 
-HAS_LIBCLOUD = True
-try:
-    from libcloud.compute.drivers.dimensiondata import DimensionDataNodeDriver
-    from libcloud.common.dimensiondata import DEFAULT_REGION
-except ImportError:
-    HAS_LIBCLOUD = False
 
 def module_key_die_if_none(module, key):
     v = module.params[key]
@@ -139,18 +158,20 @@ def get_image_id(client, module, location):
     if module.params['image_id'] is not None:
         return module.params['image_id']
     if module.params['image'] is None:
-        module.fail_json(msg='Need to specify either an image_id or image to create a node')
+        module.fail_json(msg='Need to specify either an image_id or'
+                             'image to create a node')
 
     image_match_name = module.params['image']
     images = client.list_images(location)
-    images.extend( client.ex_list_customer_images(location) )
+    images.extend(client.ex_list_customer_images(location))
 
     matched_images = list(filter(lambda x: x.name == image_match_name, images))
 
     if len(matched_images) < 1:
         module.fail_json(msg='No images matched this name')
     elif len(matched_images) > 1:
-        module.fail_json(msg='Multile images matched this please specify one of the image ids')
+        module.fail_json(msg='Multile images matched this please'
+                             ' specify a single unique image id')
 
     return matched_images[0].id
 
@@ -160,7 +181,10 @@ def node_to_node_obj(node):
     node_obj['id'] = node.id
     node_obj['ipv6'] = node.extra['ipv6']
     node_obj['os_type'] = node.extra['OS_type']
+    node_obj['private_ipv4'] = node.private_ips
+    node_obj['public_ipv4'] = node.public_ips
     return node_obj
+
 
 def create_node(client, module):
     changed = False
@@ -175,16 +199,17 @@ def create_node(client, module):
     network_id = module.params['network_id']
     network_domain_id = module.params['network_domain_id']
     if not network_domain_id and not network_id:
-        moduule.fail_json(msg='Need either a network_id (MCP1.0) or network_domain_id (MCP_2.0) to create a server')
+        module.fail_json(msg='Need either a network_id (MCP1.0) or '
+                             'network_domain_id (MCP_2.0) to create a server')
 
     dd_vlan = client.ex_get_vlan(vlan_id)
     image_id = get_image_id(client, module, dd_vlan.location.id)
     node = client.create_node(name, image_id, admin_password,
-                       module.params['description'],
-                       ex_network=network_id,
-                       ex_network_domain=network_domain_id,
-                       ex_vlan=vlan_id,
-                       ex_memory_gb=module.params['memory_gb'])
+                              module.params['description'],
+                              ex_network=network_id,
+                              ex_network_domain=network_domain_id,
+                              ex_vlan=vlan_id,
+                              ex_memory_gb=module.params['memory_gb'])
     node_obj = node_to_node_obj(node)
     return (True, [node_obj])
 
@@ -209,22 +234,20 @@ def stoporstart_servers(client, module, desired_state):
 
     return (changed, node_list)
 
+
 def core(module):
-    try:
-        username = os.environ['DIDATA_USER']
-        password = os.environ['DIDATA_PASSWORD']
-    except KeyError, e:
-        module.fail_json(msg='unable to find key %s' % e.message)
+    credentials = get_credentials()
+    if credentials is False:
+        module.fail_json(msg="User credentials not found")
+    user_id = credentials['user_id']
+    key = credentials['key']
+    region = 'dd-%s' % module.params['region']
+    verify_ssl_cert = module.params['verify_ssl_cert']
 
-    if not username or not password:
-        module.fail_json(msg='here unable to find username %s and password %s')
-
-    try:
-        region = os.environ['REGION']
-    except KeyError:
-        region = DEFAULT_REGION
-
-    client = DimensionDataNodeDriver(username, password, region)
+    # Instantiate driver
+    libcloud.security.VERIFY_SSL_CERT = verify_ssl_cert
+    DimensionData = get_driver(Provider.DIMENSIONDATA)
+    client = DimensionData(user_id, key, region=region)
     state = module.params['state']
     if state == 'stopped' or state == 'running':
         return stoporstart_servers(client, module, state)
@@ -236,22 +259,27 @@ def core(module):
 
 def main():
     module = AnsibleModule(
-        argument_spec = dict(
-            state = dict(default='present', choices=['present', 'absent', 'running', 'stopped']),
-            server_ids = dict(type='list', aliases=['server_id']),
-            name = dict(),
-            image = dict(),
-            image_id = dict(),
-            vlan = dict(),
-            vlan_id = dict(),
-            network_id = dict(),
-            network = dict(),
-            network_domain_id = dict(),
-            network_domain = dict(),
-            admin_password = dict(),
-            description = dict(),
-            memory_gb = dict(),
-            unique_names = dict(type='bool', default='no'),
+        argument_spec=dict(
+            state=dict(default='present', choices=['present',
+                                                   'absent',
+                                                   'running',
+                                                   'stopped']),
+            server_ids=dict(type='list', aliases=['server_id']),
+            name=dict(),
+            image=dict(),
+            image_id=dict(),
+            vlan=dict(),
+            vlan_id=dict(),
+            network_id=dict(),
+            network=dict(),
+            network_domain_id=dict(),
+            network_domain=dict(),
+            admin_password=dict(),
+            description=dict(),
+            memory_gb=dict(),
+            unique_names=dict(type='bool', default='no'),
+            region=dict(default='na', choices=dd_regions),
+            verify_ssl_cert=dict(required=False, default=True, type='bool')
         )
     )
     if not HAS_LIBCLOUD:
@@ -264,7 +292,6 @@ def main():
 
     module.exit_json(changed=changed, instances=data)
 
-from ansible.module_utils.basic import *
 
 if __name__ == '__main__':
         main()
