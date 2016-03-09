@@ -3,9 +3,9 @@
     hosts: localhost
     vars:
       server_ids:
-        - '7ee719e9-7ae9-480b-9f16-c6b5de03463c'
+        - '9f5973cd-ad8b-4e2c-b1fa-d406290dc1f5'
     tasks:
       - name: Shutdown host
-        didata:
+        dimensiondata:
           state: stopped
           server_ids: '{{ server_ids }}'
