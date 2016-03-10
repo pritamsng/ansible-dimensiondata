@@ -20,7 +20,7 @@
 #   - Aimon Bustardo <aimon.bustardo@dimensiondata.com>
 #
 from ansible.module_utils.basic import *
-from ansible.module_utils.dimensiondatacloud import *
+from ansible.module_utils.dimensiondata import *
 try:
     from libcloud.compute.types import Provider
     from libcloud.compute.providers import get_driver

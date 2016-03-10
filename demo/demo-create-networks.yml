@@ -10,5 +10,5 @@
     - name: Create MCP 2.0 network
       dimensiondata_network:
         region: na
-        location: NA12
+        location: NA9
         name: ansible-test2
