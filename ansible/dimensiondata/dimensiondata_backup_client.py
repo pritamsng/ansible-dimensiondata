@@ -1,6 +1,6 @@
 #!/usr/bin/python
 from ansible.module_utils.basic import *
-from ansible.module_utils.dimensiondatacloud import *
+from ansible.module_utils.dimensiondata import *
 try:
     from libcloud.common.dimensiondata import DimensionDataAPIException
     from libcloud.backup.drivers.dimensiondata import DimensionDataBackupDriver
