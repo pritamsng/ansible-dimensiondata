@@ -9,6 +9,9 @@ try:
 except:
     HAS_LIBCLOUD = False
 
+# Get regions early to use in docs etc.
+dd_regions = get_dd_regions()
+
 DOCUMENTATION = '''
 ---
 module: dimensiondata_backup
@@ -32,8 +35,7 @@ options:
   region:
     description:
       - The target region.
-    choices: ['na', 'eu', 'au', 'af', 'ap', 'latam', 'canada',
-              'canberra', 'id', 'in', 'il', 'sa']
+    choices: %s
     default: na
   client_type:
     description:
@@ -63,7 +65,7 @@ options:
     choices: [ON_FAILURE, ON_SUCCESS]
 author:
     - "Jeff Dunham (@jadunham1)"
-'''
+''' % str(dd_regions)
 
 EXAMPLES = '''
 # Note: These examples don't include authorization.
@@ -218,9 +220,7 @@ def _storage_policy_choices():
 def main():
     module = AnsibleModule(
         argument_spec=dict(
-            region=dict(default='na', choices=['na', 'eu', 'au', 'af', 'ap',
-                                               'latam', 'canada', 'canberra',
-                                               'id', 'in', 'il', 'sa']),
+            region=dict(default='na', choices=dd_regions),
             state=dict(default='present', choices=['present', 'absent']),
             server_ids=dict(required=True, type='list',
                             aliases=['server_id']),
