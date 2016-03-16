@@ -229,8 +229,8 @@ def create_node(client, module):
         if len(node_list) >= 1:
             return (changed, [node_to_node_obj(node) for node in node_list])
 
-    admin_password = module.params.get('admin_password')
     vlan_id = module_key_die_if_none(module, 'vlan_id')
+    admin_password = module.params['admin_password']
     network_id = module.params['network_id']
     network_domain_id = module.params['network_domain_id']
     if not network_domain_id and not network_id:
