@@ -4,6 +4,7 @@ from ansible.module_utils.dimensiondata import *
 
 HAS_LIBCLOUD = True
 try:
+    from libcloud.common.dimensiondata import DimensionDataAPIException
     from libcloud.compute.types import Provider
     from libcloud.compute.providers import get_driver
     import libcloud.security
@@ -125,6 +126,22 @@ options:
       - Check that SSL certificate is valid.
     required: false
     default: true
+  wait:
+    description:
+      - Should we wait for the task to complete before moving onto the next.
+    required: false
+    default: false
+  wait_time:
+    description:
+      - Only applicable if wait is true.
+        This is the amount of time in seconds to wait
+    required: false
+    default: 600
+  wait_poll_interval:
+    description:
+      - The amount to time inbetween polling for task completion
+    required: false
+    default: 2
 
 author:
     - "Jeff Dunham (@jadunham1)"
@@ -138,12 +155,25 @@ EXAMPLES = '''
 
 # Basic create node example
 
-- didata:
+- dimensiondata:
     vlan_id: '{{ vlan_id }}'
     network_domain_id: '{{ network_domain_id }}'
     image: 'RedHat 7 64-bit 2 CPU'
     name: ansible-test-image
     admin_password: fakepass
+
+# Ensure servers are running and wait for it to come up
+- dimensiondata:
+    state: running
+    server_ids: '{{ server_ids }}'
+    wait: yes
+
+# Ensure servers are stopped and wait for them to stop
+
+- dimensiondata:
+    state: stopped
+    server_ids: '{{ server_ids }}'
+    wait: yes
 '''
 
 
@@ -183,6 +213,11 @@ def node_to_node_obj(node):
     node_obj['os_type'] = node.extra['OS_type']
     node_obj['private_ipv4'] = node.private_ips
     node_obj['public_ipv4'] = node.public_ips
+    node_obj['location'] = node.extra['datacenterId']
+    node_obj['state'] = node.state
+    # Password object will only be set if the password is randomly generated
+    if 'password' in node.extra:
+        node_obj['password'] = node.extra['password']
     return node_obj
 
 
@@ -194,7 +229,7 @@ def create_node(client, module):
         if len(node_list) >= 1:
             return (changed, [node_to_node_obj(node) for node in node_list])
 
-    admin_password = module_key_die_if_none(module, 'admin_password')
+    admin_password = module.params.get('admin_password')
     vlan_id = module_key_die_if_none(module, 'vlan_id')
     network_id = module.params['network_id']
     network_domain_id = module.params['network_domain_id']
@@ -210,8 +245,22 @@ def create_node(client, module):
                               ex_network_domain=network_domain_id,
                               ex_vlan=vlan_id,
                               ex_memory_gb=module.params['memory_gb'])
+    if module.params['wait']:
+        node = wait_for_server_state(client, module, node.id, 'running')
     node_obj = node_to_node_obj(node)
     return (True, [node_obj])
+
+
+def wait_for_server_state(client, module, server_id, state_to_wait_for):
+    try:
+        return client.connection.wait_for_state(
+            state_to_wait_for, client.ex_get_node_by_id,
+            module.params['wait_poll_interval'],
+            module.params['wait_time'], server_id
+        )
+    except DimensionDataAPIException as e:
+        module.fail_json(msg='Server did not reach % state in time: %s'
+                         % (state, e.msg))
 
 
 def stoporstart_servers(client, module, desired_state):
@@ -221,7 +270,6 @@ def stoporstart_servers(client, module, desired_state):
     node_list = []
     for server in servers:
         node = client.ex_get_node_by_id(server)
-        node_list.append(node_to_node_obj(node))
         if node.state == 'terminated':
             node.state = 'stopped'
         if desired_state != node.state:
@@ -231,6 +279,12 @@ def stoporstart_servers(client, module, desired_state):
             elif desired_state == 'stopped':
                 client.ex_shutdown_graceful(node)
                 changed = True
+            if module.params['wait']:
+                node = wait_for_server_state(client, module,
+                                             server, desired_state)
+            else:
+                node = client.ex_get_node_by_id(server)
+        node_list.append(node_to_node_obj(node))
 
     return (changed, node_list)
 
@@ -279,7 +333,10 @@ def main():
             memory_gb=dict(),
             unique_names=dict(type='bool', default='no'),
             region=dict(default='na', choices=dd_regions),
-            verify_ssl_cert=dict(required=False, default=True, type='bool')
+            verify_ssl_cert=dict(required=False, default=True, type='bool'),
+            wait=dict(required=False, default=False, type='bool'),
+            wait_time=dict(required=False, default=600, type='int'),
+            wait_poll_interval=dict(required=False, default=2, type='int')
         )
     )
     if not HAS_LIBCLOUD:
