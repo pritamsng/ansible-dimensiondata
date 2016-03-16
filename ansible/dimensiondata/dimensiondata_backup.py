@@ -11,6 +11,9 @@ except:
     HAS_LIBCLOUD = False
 import time
 
+# Get regions early to use in docs etc.
+dd_regions = get_dd_regions()
+
 DOCUMENTATION = '''
 ---
 module: dimensiondata_backup
@@ -35,8 +38,7 @@ options:
   region:
     description:
       - The target region.
-    choices: ['na', 'eu', 'au', 'af', 'ap', 'latam', 'canada',
-              'canberra', 'id', 'in', 'il', 'sa']
+    choices: %s
     default: na
   service_plan:
     description:
@@ -59,10 +61,15 @@ options:
         This is the amount of time in seconds to wait
     required: false
     default: 120
+  wait_poll_interval:
+    description:
+      - The amount to time inbetween polling for task completion
+    required: false
+    default: 2
 
 author:
     - "Jeff Dunham (@jadunham1)"
-'''
+''' % str(dd_regions)
 
 EXAMPLES = '''
 # Note: These examples don't include authorization.
@@ -100,8 +107,6 @@ servers:
     type: list
     contains: server_ids processed
 '''
-
-POLLING_INTERVAL = 2
 
 
 def handle_backups(module, client):
@@ -149,7 +154,8 @@ def enable_backup_for_server(client, module, server_id, service_plan):
         try:
             client.connection.wait_for_state(
                 'NORMAL', client.ex_get_backup_details_for_target,
-                POLLING_INTERVAL, module.params['wait_time'], server_id
+                module.params['wait_poll_interval'],
+                module.params['wait_time'], server_id
             )
         except DimensionDataAPIException as e:
             module.fail_json(msg='Backup did not enable in time: %s' % e.msg)
@@ -167,9 +173,7 @@ def modify_backup_for_server(client, module, server_id, service_plan):
 def main():
     module = AnsibleModule(
         argument_spec=dict(
-            region=dict(default='na', choices=['na', 'eu', 'au', 'af', 'ap',
-                                               'latam', 'canada', 'canberra',
-                                               'id', 'in', 'il', 'sa']),
+            region=dict(default='na', choices=dd_regions),
             state=dict(default='present', choices=['present', 'absent']),
             server_ids=dict(required=True, type='list',
                             aliases=['server_id']),
@@ -179,7 +183,8 @@ def main():
                                        'Enterprise']),
             verify_ssl_cert=dict(required=False, default=True, type='bool'),
             wait=dict(required=False, default=False, type='bool'),
-            wait_time=dict(required=False, default=120, type='int')
+            wait_time=dict(required=False, default=120, type='int'),
+            wait_poll_interval=dict(required=False, default=2, type='int')
         )
     )
     if not HAS_LIBCLOUD:
