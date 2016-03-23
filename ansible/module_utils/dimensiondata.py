@@ -22,7 +22,6 @@
 # Common methods to be used by versious module components
 import os
 import ConfigParser
-import re
 from os.path import expanduser
 from libcloud.common.dimensiondata import API_ENDPOINTS
 
