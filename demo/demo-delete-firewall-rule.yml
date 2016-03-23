@@ -1,0 +1,11 @@
+---
+- hosts: 127.0.0.1
+  connection: local
+  tasks:
+    - name: Create MCP 2.0 firewall rule
+      dimensiondata_firewall:
+        region: na
+        location: NA12
+        network_domain: DevOps_NA12
+        name: ansible_test1
+        state: absent
