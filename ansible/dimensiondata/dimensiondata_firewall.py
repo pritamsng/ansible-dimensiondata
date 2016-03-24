@@ -234,7 +234,7 @@ firewall_rule:
 '''
 
 
-def get_network_by_name(driver, name, location):
+def get_network_domain_by_name(driver, name, location):
     networks = driver.ex_list_network_domains(location=location)
     network = filter(lambda x: x.name == name, networks)
     if len(network) > 0:
@@ -243,8 +243,9 @@ def get_network_by_name(driver, name, location):
         return None
 
 
-def get_firewall_rule_by_name(driver, name, network_id):
-    firewall_rules = driver.ex_list_firewall_rules(network_domain=network_id)
+def get_firewall_rule_by_name(driver, name, network_domain_id):
+    firewall_rules = driver.ex_list_firewall_rules(
+        network_domain=network_domain_id)
     rule = filter(lambda x: x.name == name, firewall_rules)
     if len(rule) > 0:
         return rule[0]
@@ -252,14 +253,15 @@ def get_firewall_rule_by_name(driver, name, network_id):
         return None
 
 
-def create_firewall_rule(module, driver, name, action, networkid, ip_version,
-                         protocol, source_ip, source_ip_prefix_size,
-                         source_start_port, source_end_port, destination_ip,
+def create_firewall_rule(module, driver, name, action, network_domain_id,
+                         ip_version, protocol, source_ip,
+                         source_ip_prefix_size, source_start_port,
+                         source_end_port, destination_ip,
                          destination_ip_prefix_size, destination_start_port,
                          destination_end_port, position,
                          position_relative_to_rule):
     try:
-        network_domain = driver.ex_get_network_domain(networkid)
+        network_domain = driver.ex_get_network_domain(network_domain_id)
         source_any = True if source_ip == 'ANY' else False
         dest_any = True if destination_ip == 'ANY' else False
         source_address = DimensionDataFirewallAddress(source_any, source_ip,
@@ -420,7 +422,7 @@ def main():
     driver = DimensionData(user_id, key, region=region)
 
     # Get network object by name
-    network_obj = get_network_by_name(driver, network_domain, location)
+    network_obj = get_network_domain_by_name(driver, network_domain, location)
 
     position = position.upper()
     # Check if relative_to_rule exists
