@@ -43,6 +43,7 @@ DOCUMENTATION = '''
 module: dimensiondata_firewall
 short_description:
     - Create, update, and delete MCP 2.0 firewall rules.
+    - Requires MCP 2.0.
 version_added: '2.1'
 author: 'Aimon Bustardo (@aimonb)'
 options:
@@ -130,7 +131,7 @@ EXAMPLES = '''
     action:  ACCEPT_DECISIVELY
     protocol: TCP
     destination: 10.1.2.3
-    description_port: 443
+    destination_port: 443
 # Delete a rule:
 - dimensiondata_firewall:
     region: na
