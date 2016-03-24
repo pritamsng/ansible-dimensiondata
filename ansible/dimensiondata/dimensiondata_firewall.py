@@ -328,9 +328,8 @@ def to_source_or_destination(addresses, ports):
         else:
             start_port = port_parts[0]
             end_port = port_parts[0]
-    return Bunch(any_ip=any_ip, ip_address=ip_address,
-                 ip_prefix_size=ip_prefix_size, port_begin=start_port,
-                 port_end=end_port)
+    return DimensionDataFirewallAddress(any_ip, ip_address, ip_prefix_size,
+                                        start_port, end_port)
 
 
 def sync_firewall_rule_state(module, driver, fw_rule, state):
@@ -365,12 +364,6 @@ def rule_obj_to_dict(rule):
     rule_dict['enabled'] = rule.enabled
 
     return rule_dict
-
-
-# Create Bunch class to hold arbitrary attributes
-class Bunch:
-    def __init__(self, **kwds):
-        self.__dict__.update(kwds)
 
 
 def main():
