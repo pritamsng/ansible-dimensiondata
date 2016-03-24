@@ -259,7 +259,7 @@ def create_firewall_rule(module, driver, name, action, network_domain_id,
                          source_end_port, destination_ip,
                          destination_ip_prefix_size, destination_start_port,
                          destination_end_port, position,
-                         position_relative_to_rule):
+                         position_relative_to_rule, enabled):
     try:
         network_domain = driver.ex_get_network_domain(network_domain_id)
         source_any = True if source_ip == 'ANY' else False
@@ -279,9 +279,13 @@ def create_firewall_rule(module, driver, name, action, network_domain_id,
                                          protocol=protocol,
                                          source=source_address,
                                          destination=dest_address,
-                                         enabled=True)
-        return driver.ex_create_firewall_rule(network_domain, rule, position,
-                                              position_relative_to_rule)
+                                         enabled=enabled)
+        new_rule = driver.ex_create_firewall_rule(network_domain, rule,
+                                                  position,
+                                                  position_relative_to_rule)
+        module.exit_json(changed=True, msg="Firewall rule created " +
+                         "successfully.",
+                         firewall_rule=rule_obj_to_dict(new_rule))
     except DimensionDataAPIException as e:
         module.fail_json(msg="Create Firewall Rule failed with: '%s'" % e)
 
@@ -329,20 +333,22 @@ def to_source_or_destination(addresses, ports):
                  port_end=end_port)
 
 
-def sync_firewall_rule_state(driver, fw_rule, state):
+def sync_firewall_rule_state(module, driver, fw_rule, state):
     if state == 'disabled' and fw_rule.enabled != 'false':
-        enable = False
+        enabled = False
     elif state != 'disabled' and fw_rule.enabled == 'true':
         return {'success': True, 'result': 'nochange'}
     elif state != 'disabled' and fw_rule.enabled != 'true':
-        enable = True
+        enabled = True
     try:
         # State doesnt match, so set state.
-        # TBD handle result code 'IN_PROGRESS'
-        res_code = driver.ex_set_firewall_rule_state(fw_rule, enable)
-        return {'success': True, 'result': res_code}
+        driver.ex_set_firewall_rule_state(fw_rule, enabled)
+        fw_rule.enabled = 'false' if state == 'disabled' else 'true'
+        module.exit_json(changed=True,
+                         msg="Firewall rule %s state changed." %
+                         fw_rule.name, firewall_rule=rule_obj_to_dict(fw_rule))
     except DimensionDataAPIException as e:
-        return {'success': False, 'result': e}
+        module.fail_json(msg="Firewall rule state change failed with: %s" % e)
 
 
 def rule_obj_to_dict(rule):
@@ -442,6 +448,8 @@ def main():
 
     # Process state
     if state == 'present' or state == 'enabled' or state == 'disabled':
+        # Is enabled?
+        enabled = 'false' if state == 'disabled' else 'true'
         # Get SOURCE network parts
         source_obj = to_source_or_destination(source, source_port)
         # Get DESTINATION network parts
@@ -449,7 +457,6 @@ def main():
                                                    destination_port)
         if existing_rule is None:
             # Create Firewall Rule
-            created = True
             fw_rule = create_firewall_rule(module, driver, name, action,
                                            network_obj.id,
                                            ip_version, protocol,
@@ -461,40 +468,22 @@ def main():
                                            destination_obj.ip_prefix_size,
                                            destination_obj.port_begin,
                                            destination_obj.port_end, position,
-                                           relative_to_rule)
+                                           relative_to_rule, enabled)
         else:
-            created = False
             # Rule already exists
             fw_rule = existing_rule
-
-        # Exit now if state doesnt need updating
-        if fw_rule.enabled == 'false' and state == 'disabled':
-            module.exit_json(changed=False,
-                             msg="Firewall rule exists and is disabled.",
-                             firewall_rule=rule_obj_to_dict(fw_rule))
-        elif fw_rule.enabled == 'true' and state != 'disabled':
-            module.exit_json(changed=False,
-                             msg="Firewall rule exists and is enabled.",
-                             firewall_rule=rule_obj_to_dict(fw_rule))
-
-        # Sync Rule state
-        sync_res = sync_firewall_rule_state(driver, fw_rule, state)
-
-        if sync_res['success'] is True and created is True:
-            module.exit_json(changed=True,
-                             msg="Firewall rule %s created and disabled." %
-                             name, firewall_rule=rule_obj_to_dict(fw_rule))
-        elif sync_res['success'] is True and created is False:
-            module.exit_json(changed=True,
-                             msg="Firewall rule %s disabled." %
-                             name, firewall_rule=rule_obj_to_dict(fw_rule))
-        elif sync_res['success'] is False and created is False:
-            module.fail_json(msg="Firewall rule state change failed.")
-        elif sync_res['success'] is False and created is True:
-            module.fail_json(msg="Firewall rule created but state change " +
-                             "failed: %s", firewall_rule=sync_res['result'])
-        else:
-            module.fail_json(msg="Unexpected result while changing rule state")
+            # Exit now if state doesnt need updating
+            if fw_rule.enabled == 'false' and state == 'disabled':
+                module.exit_json(changed=False,
+                                 msg="Firewall rule exists and is disabled.",
+                                 firewall_rule=rule_obj_to_dict(fw_rule))
+            elif fw_rule.enabled == 'true' and state != 'disabled':
+                module.exit_json(changed=False,
+                                 msg="Firewall rule exists and is enabled.",
+                                 firewall_rule=rule_obj_to_dict(fw_rule))
+            else:
+                # Sync Rule state
+                sync_firewall_rule_state(module, driver, fw_rule, state)
     elif state == "absent":
         if existing_rule is None:
             module.exit_json(msg="Rule with name '%s' not found." % name)
