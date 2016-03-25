@@ -1,0 +1,20 @@
+---
+- hosts: 127.0.0.1
+  connection: local
+  tasks:
+    - name: Create MCP 2.0 firewall rule
+      dimensiondata_firewall:
+        region: na
+        location: NA12
+        network_domain: DevOps_NA12
+        name: ansible_test1
+        state: enabled
+        action: ACCEPT_DECISIVELY
+        ip_version: IPv4
+        protocol: TCP
+        source: ANY
+        source_port: ANY
+        destination: 168.128.28.100
+        destination_port: 5555
+        position: BEFORE
+        relative_to_rule: SSH_Alt
