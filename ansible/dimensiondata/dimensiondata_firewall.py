@@ -290,14 +290,14 @@ def create_firewall_rule(module, driver, name, action, network_domain_id,
         module.fail_json(msg="Create Firewall Rule failed with: '%s'" % e)
 
 
-def delete_firewall_rule(module, driver, rule_id):
+def delete_firewall_rule(module, driver, rule):
     try:
-        res = driver.ex_delete_firewall_rule(rule_id)
+        res = driver.ex_delete_firewall_rule(rule)
         if res is True:
             module.exit_json(changed=True,
-                             msg="Deleted firewall rule with id: '%s'" %
-                             rule_id)
-        module.fail_json("Unexpected failure deleting rule %s" % name)
+                             msg="Deleted firewall rule with name: '%s'" %
+                             rule.name)
+        module.fail_json("Unexpected failure deleting rule %s" % rule.name)
     except DimensionDataAPIException as e:
         module.fail_json(msg="Failed to delete firewall rule: %s" % str(e))
 
