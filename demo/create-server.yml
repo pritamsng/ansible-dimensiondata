@@ -12,6 +12,7 @@
           vlan_id: '{{ vlan_id }}'
           network_domain_id: '{{ network_domain_id }}'
           description: 'my new node'
-          image: 'RedHat 6 64-bit 2 CPU'
+          image: 'RedHat 7 64-bit 2 CPU'
           name: ansible-test-image-rhel6
           admin_password: '{{ admin_password }}'
+          wait: yes
