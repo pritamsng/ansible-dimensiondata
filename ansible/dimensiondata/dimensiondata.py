@@ -34,12 +34,12 @@ options:
     default: present
     aliases: []
     choices: ['present', 'absent', 'running', 'stopped']
-  server_ids:
+  node_ids:
     description:
       - A list of server ids to work on
     required: false
     default: null
-    aliases: ['server_id']
+    aliases: ['server_id', 'server_ids', 'node_id']
   name:
     description:
       - The name of the server you want to work on
@@ -165,14 +165,14 @@ EXAMPLES = '''
 # Ensure servers are running and wait for it to come up
 - dimensiondata:
     state: running
-    server_ids: '{{ server_ids }}'
+    node_ids: '{{ node_ids }}'
     wait: yes
 
 # Ensure servers are stopped and wait for them to stop
 
 - dimensiondata:
     state: stopped
-    server_ids: '{{ server_ids }}'
+    node_ids: '{{ node_ids }}'
     wait: yes
 '''
 
@@ -266,7 +266,7 @@ def wait_for_server_state(client, module, server_id, state_to_wait_for):
 def stoporstart_servers(client, module, desired_state):
     changed = False
 
-    servers = module_key_die_if_none(module, 'server_ids')
+    servers = module_key_die_if_none(module, 'node_ids')
     node_list = []
     for server in servers:
         node = client.ex_get_node_by_id(server)
@@ -318,7 +318,9 @@ def main():
                                                    'absent',
                                                    'running',
                                                    'stopped']),
-            server_ids=dict(type='list', aliases=['server_id']),
+            node_ids=dict(type='list', aliases=['server_id',
+                                                'server_ids',
+                                                'node_id']),
             name=dict(),
             image=dict(),
             image_id=dict(),

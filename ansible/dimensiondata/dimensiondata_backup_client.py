@@ -26,12 +26,12 @@ options:
     required: false
     default: present
     choices: ['present', 'absent']
-  server_ids:
+  node_ids:
     description:
       - A list of server ids to work on
     required: false
     default: null
-    aliases: ['server_id']
+    aliases: ['server_id', 'server_ids', 'node_id']
   region:
     description:
       - The target region.
@@ -76,18 +76,18 @@ EXAMPLES = '''
 # Basic enable backups example
 
 - dimensiondata_backup:
-    server_ids:
+    node_ids:
       - '7ee719e9-7ae9-480b-9f16-c6b5de03463c'
 
 # Basic remove backups example
 - dimensiondata_backup:
-    server_ids:
+    node_ids:
       - '7ee719e9-7ae9-480b-9f16-c6b5de03463c'
     state: absent
 
 # Full options enable
 - dimensiondata_backup:
-    server_ids:
+    node_ids:
       - '7ee719e9-7ae9-480b-9f16-c6b5de03463c'
     state: present
     wait: yes
@@ -101,7 +101,7 @@ servers:
     description: list of servers this worked on
     returned: Always
     type: list
-    contains: server_ids processed
+    contains: node_ids processed
 '''
 
 
@@ -142,7 +142,7 @@ def handle_backup_client(module, client):
     client_type = module.params['client_type']
     server_clients_return = {}
 
-    for server_id in module.params['server_ids']:
+    for server_id in module.params['node_ids']:
         backup_details = get_backup_details_for_host(client, server_id)
         backup_client = get_backup_client(backup_details, client_type)
         if state == 'absent' and backup_client is None:
@@ -222,8 +222,8 @@ def main():
         argument_spec=dict(
             region=dict(default='na', choices=dd_regions),
             state=dict(default='present', choices=['present', 'absent']),
-            server_ids=dict(required=True, type='list',
-                            aliases=['server_id']),
+            node_ids=dict(required=True, type='list',
+                          aliases=['server_id', 'server_ids', 'node_id']),
             client_type=dict(required=True,
                              choices=['FA.Win', 'FA.AD', 'FA.Linux',
                                       'MySQL', 'PostgreSQL']),
