@@ -83,3 +83,14 @@ def get_dd_regions():
     regions = [region[3:] for region in region_list]
 
     return regions
+
+#----------------------------------------
+# Get a network domain object by its name
+#----------------------------------------
+def get_network_domain_by_name(driver, name, location):
+    networks = driver.ex_list_network_domains(location=location)
+    network = filter(lambda x: x.name == name, networks)
+    if len(network) > 0:
+        return network[0]
+    else:
+        return None
