@@ -29,12 +29,12 @@ options:
     default: present
     aliases: []
     choices: ['present', 'absent']
-  server_ids:
+  node_ids:
     description:
       - A list of server ids to work on.
     required: false
     default: null
-    aliases: ['server_id']
+    aliases: ['server_id', 'server_ids', 'node_id']
   region:
     description:
       - The target region.
@@ -80,18 +80,18 @@ EXAMPLES = '''
 # Basic enable backups example
 
 - dimensiondata_backup:
-    server_ids:
+    node_ids:
       - '7ee719e9-7ae9-480b-9f16-c6b5de03463c'
 
 # Basic remove backups example
 - dimensiondata_backup:
-    server_ids:
+    node_ids:
       - '7ee719e9-7ae9-480b-9f16-c6b5de03463c'
     state: absent
 
 # Full options enable
 - dimensiondata_backup:
-    server_ids:
+    node_ids:
       - '7ee719e9-7ae9-480b-9f16-c6b5de03463c'
     state: present
     wait: yes
@@ -105,7 +105,7 @@ servers:
     description: List of servers this worked on.
     returned: Always
     type: list
-    contains: server_ids processed
+    contains: node_ids processed
 '''
 
 
@@ -114,7 +114,7 @@ def handle_backups(module, client):
     state = module.params['state']
     service_plan = module.params['service_plan']
 
-    for server_id in module.params['server_ids']:
+    for server_id in module.params['node_ids']:
         try:
             backup_details = client.ex_get_backup_details_for_target(server_id)
         except DimensionDataAPIException as e:
@@ -143,7 +143,7 @@ def handle_backups(module, client):
             module.fail_json(msg="Unhandled state")
 
     module.exit_json(changed=changed, msg='Enabled host',
-                     servers=module.params['server_ids'])
+                     servers=module.params['node_ids'])
 
 
 def enable_backup_for_server(client, module, server_id, service_plan):
@@ -175,8 +175,8 @@ def main():
         argument_spec=dict(
             region=dict(default='na', choices=dd_regions),
             state=dict(default='present', choices=['present', 'absent']),
-            server_ids=dict(required=True, type='list',
-                            aliases=['server_id']),
+            node_ids=dict(required=True, type='list',
+                          aliases=['server_id', 'server_ids', 'node_id']),
             service_plan=dict(default='Essentials',
                               choices=['Advanced',
                                        'Essentials',
