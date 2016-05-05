@@ -1,0 +1,19 @@
+---
+- hosts: 127.0.0.1
+  connection: local
+  tasks:
+  - dimensiondata_vlan:
+      region: na
+      location: NA12
+      network_domain: Ansible_testing_agb
+      name: my_vlan1_new_name
+      action: read
+    register: vlan_result
+  - block:
+    - dimensiondata_vlan:
+        region: na
+        location: NA12
+        private_ipv4_prefix_size: 23
+        network_domain: Ansible_testing_agb
+        vlan_id: "{{ vlan_result['vlan']['id'] }}"
+        action: expand
