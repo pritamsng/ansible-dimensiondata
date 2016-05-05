@@ -84,9 +84,10 @@ def get_dd_regions():
 
     return regions
 
-#----------------------------------------
+
+# ----------------------------------------
 # Get a network domain object by its name
-#----------------------------------------
+# ----------------------------------------
 def get_network_domain_by_name(driver, name, location):
     networks = driver.ex_list_network_domains(location=location)
     network = filter(lambda x: x.name == name, networks)
@@ -94,3 +95,14 @@ def get_network_domain_by_name(driver, name, location):
         return network[0]
     else:
         return None
+
+
+# ----------------------------------------
+# Get a locations MCP version
+# ----------------------------------------
+def get_mcp_version(driver, location):
+    # Get location to determine if MCP 1.0 or 2.0
+    location = driver.ex_get_location_by_id(location)
+    if 'MCP 2.0' in location.name:
+        return '2.0'
+    return '1.0'
