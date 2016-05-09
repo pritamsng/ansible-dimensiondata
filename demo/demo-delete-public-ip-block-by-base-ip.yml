@@ -1,0 +1,11 @@
+---
+- hosts: 127.0.0.1
+  connection: local
+  tasks:
+  # Delete public IP Block by base IP.
+  - dimensiondata_public_ip_block:
+      region: na
+      network_domain: testing_network111
+      location: NA12
+      action: delete
+      base_ip: 168.12.2.1

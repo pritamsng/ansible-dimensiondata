@@ -234,15 +234,6 @@ firewall_rule:
 '''
 
 
-def get_network_domain_by_name(driver, name, location):
-    networks = driver.ex_list_network_domains(location=location)
-    network = filter(lambda x: x.name == name, networks)
-    if len(network) > 0:
-        return network[0]
-    else:
-        return None
-
-
 def get_firewall_rule_by_name(driver, name, network_domain_id):
     firewall_rules = driver.ex_list_firewall_rules(
         network_domain=network_domain_id)
