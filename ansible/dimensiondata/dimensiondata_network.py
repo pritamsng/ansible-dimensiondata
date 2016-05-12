@@ -179,7 +179,7 @@ def create_network(module, driver, mcp_version, location,
             res = driver.ex_create_network_domain(location, name,
                                                   service_plan,
                                                   description=description)
-    except Exception as e:
+    except DimensionDataAPIException as e:
         module.fail_json(msg="Failed to create new network: %s" % str(e))
     msg = "Created network %s in %s" % (name, location)
     network = network_obj_to_dict(res, mcp_version)
@@ -198,7 +198,7 @@ def delete_network(module, driver, matched_network, mcp_version):
                              matched_network[0].id)
         module.fail_json("Unexpected failure deleting network with " +
                          "id %s", matched_network[0].id)
-    except Exception as e:
+    except DimensionDataAPIException as e:
         module.fail_json(msg="Failed to delete network: %s" % str(e))
 
 
@@ -266,7 +266,7 @@ def main():
             module.exit_json(changed=False, msg="Network does not exist")
     else:
         fail_json(msg="Requested state was " +
-                  "'%s'. State must be 'absent' or 'failed'" % state)
+                  "'%s'. State must be 'absent' or 'present'" % state)
 
 if __name__ == '__main__':
     main()
