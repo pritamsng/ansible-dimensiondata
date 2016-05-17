@@ -39,8 +39,8 @@ dd_regions = get_dd_regions()
 # Virtual Listener Protocols
 protocols = ['any', 'tcp', 'udp', 'http', 'ftp', 'smtp']
 # Load Balancing algorithms
-lb_algs = ['RAMDOM', 'ROUND_ROBIN', 'LEAST_CONNECTIONS',
-           'WEIGHTED_ROUND_ROBIN', 'SHORTEST_RESPONSE', 'PERSISTENT_IP']
+lb_algs = ['ROUND_ROBIN', 'LEAST_CONNECTIONS',
+           'SHORTEST_RESPONSE', 'PERSISTENT_IP']
 
 DOCUMENTATION = '''
 ---
