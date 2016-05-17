@@ -5,8 +5,8 @@
   - dimensiondata_vlan:
       region: na
       location: NA12
-      network_domain: Ansible_testing_agb
-      name: my_vlan1_new_name
+      network_domain: my_net_domain
+      name: my_vlan1
       action: read
     register: vlan_result
   - block:
@@ -14,6 +14,6 @@
         region: na
         location: NA12
         private_ipv4_prefix_size: 23
-        network_domain: Ansible_testing_agb
+        network_domain: my_net_domain
         vlan_id: "{{ vlan_result['vlan']['id'] }}"
         action: expand

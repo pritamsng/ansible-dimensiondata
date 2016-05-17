@@ -5,9 +5,9 @@
   - dimensiondata_vlan:
       region: na
       location: NA12
-      network_domain: Ansible_testing_agb
+      network_domain: my_net_domain
       name: my_vlan1
       description: A test VLANd Network.
-      private_ipv4_base_address: '192.168.23.0'
+      private_ipv4_base_address: '192.168.22.0'
       private_ipv4_prefix_size: 24
       action: create

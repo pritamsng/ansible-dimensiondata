@@ -5,7 +5,7 @@
   - dimensiondata_vlan:
       region: na
       location: NA12
-      network_domain: Ansible_testing_agb
+      network_domain: my_net_domain
       name: my_vlan1
       action: read
     register: vlan_result
@@ -15,6 +15,6 @@
         location: NA12
         name: my_vlan1_new_name
         description: New description
-        network_domain: Ansible_testing_agb
+        network_domain: my_net_domain
         vlan_id: "{{ vlan_result['vlan']['id'] }}"
         action: update

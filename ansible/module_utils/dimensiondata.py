@@ -24,6 +24,7 @@ import os
 import ConfigParser
 from os.path import expanduser
 from libcloud.common.dimensiondata import API_ENDPOINTS
+from uuid import UUID
 
 
 # -------------------------
@@ -97,6 +98,25 @@ def get_network_domain_by_name(driver, name, location):
         return None
 
 
+# ---------------------------------------------
+# Get a network domain object by its name or id
+# ---------------------------------------------
+def get_network_domain(driver, locator, location):
+    if is_uuid(locator):
+        net_id = locator
+    else:
+        networks = driver.ex_list_network_domains(location=location)
+        found_networks = filter(lambda x: x.name == locator, networks)
+        if len(found_networks) > 0:
+            net_id = found_networks[0].id
+        else:
+            return False
+    try:
+        return driver.ex_get_network_domain(net_id)
+    except:
+        return False
+
+
 # ----------------------------------------
 # Get a locations MCP version
 # ----------------------------------------
@@ -106,3 +126,14 @@ def get_mcp_version(driver, location):
     if 'MCP 2.0' in location.name:
         return '2.0'
     return '1.0'
+
+
+# ---------------------
+# Test if valid v4 UUID
+# ---------------------
+def is_uuid(u, version=4):
+    try:
+        uuid_obj = UUID(u, version=version)
+        return str(uuid_obj) == u
+    except:
+        return False

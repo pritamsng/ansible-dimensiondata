@@ -83,7 +83,7 @@ options:
   action:
     description:
       - create, read(get), update or delete.
-    choices: ['create', 'read', 'get', update', 'delete']
+    choices: ['create', 'read', 'get', update', 'delete', 'expand']
     default: create
 ''' % str(dd_regions)
 
@@ -161,13 +161,15 @@ vlan:
 
 
 def vlan_obj_to_dict(vlan):
-    vlan_dict = dict(id=vlan.id,
-                     name=vlan.name,
-                     description=vlan.description,
-                     location=vlan.location.id,
-                     status=vlan.status
-                     )
-    return vlan_dict
+    vlan_d = dict(id=vlan.id,
+                  name=vlan.name,
+                  description=vlan.description,
+                  location=vlan.location.id,
+                  private_ipv4_range_address=vlan.private_ipv4_range_address,
+                  private_ipv4_range_size=vlan.private_ipv4_range_size,
+                  status=vlan.status,
+                  )
+    return vlan_d
 
 
 def create_vlan(module, driver, location, network_domain, name, description,
@@ -246,12 +248,14 @@ def expand_vlan(module, driver, location, network_domain, vlan_id, name,
     if type(vlan_obj) is dict:
         module.exit_json(changed=False, msg="VLAN not found.")
     else:
-        module.fail_json(msg=vlan_obj_to_dict(vlan_obj))
-        vlan_obj.private_ipv4_range_size = private_ipv4_range_size
-        try:
-            return ex_expend_vlan(vlan_obj)
-        except DimensionDataAPIException as e:
-            module.fail_json(msg="Failed to expand VLAN: %s" % e)
+        if vlan_obj.private_ipv4_range_size == private_ipv4_range_size:
+            return False
+        else:
+            vlan_obj.private_ipv4_range_size = private_ipv4_range_size
+            try:
+                return driver.ex_expand_vlan(vlan_obj)
+            except DimensionDataAPIException as e:
+                module.fail_json(msg="Failed to expand VLAN: %s" % e)
 
 
 def main():
@@ -266,7 +270,8 @@ def main():
             private_ipv4_base_address=dict(default=False, type='str'),
             private_ipv4_prefix_size=dict(default=False, type='str'),
             action=dict(default='create', choices=['create', 'read', 'get',
-                                                   'update', 'delete']),
+                                                   'update', 'delete',
+                                                   'expand']),
             verify_ssl_cert=dict(required=False, default=True, type='bool')
         )
     )
@@ -345,7 +350,11 @@ def main():
                              "expanding a VLAN")
         res = expand_vlan(module, driver, location, network_domain, vlan_id,
                           name, prefix_size)
-
+        if type(res) is bool:
+            module.exit_json(changed=False, msg="VLAN already requested size.")
+        else:
+            module.exit_json(changes=True, msg="VLAN network size modified.",
+                             vlan=vlan_obj_to_dict(res))
     else:
         fail_json(msg="Requested action was " +
                   "'%s'. Action must be one of 'create', 'read', " % state +
