@@ -412,7 +412,7 @@ def main():
     driver = DimensionData(user_id, key, region=region)
 
     # Get network object by name
-    network_obj = get_network_domain_by_name(driver, network_domain, location)
+    network_obj = get_network_domain(driver, network_domain, location)
 
     position = position.upper()
     # Check if relative_to_rule exists

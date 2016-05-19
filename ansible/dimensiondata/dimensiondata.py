@@ -118,7 +118,7 @@ options:
         this will make sure we don't create a new server if the name
         already exists
     required: false
-    default: 'no'
+    default: 'yes'
     aliases: []
     choices: ['yes', 'no']
   verify_ssl_cert:

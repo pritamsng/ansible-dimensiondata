@@ -261,7 +261,8 @@ def main():
                                  e)
         else:
             module.exit_json(changed=False, msg="Load balancer already " +
-                             "exists.")
+                             "exists.", load_balancer=balancer_obj_to_dict(
+                                 balancer))
     elif ensure == 'absent':
         balancer = get_balancer(module, lb_driver, name)
         if balancer is False:

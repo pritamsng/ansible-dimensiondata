@@ -228,8 +228,7 @@ def main():
     driver = DimensionData(user_id, key, region=region)
 
     # get the network domain object
-    network_domain_obj = get_network_domain_by_name(driver, network_domain,
-                                                    location)
+    network_domain_obj = get_network_domain(driver, network_domain, location)
     if action == 'delete':
         delete_public_ip_block(module, driver, network_domain_obj, block_id,
                                base_ip)

@@ -80,6 +80,22 @@ options:
       - Check that SSL certificate is valid.
     required: false
     default: true
+  wait:
+    description:
+      - Should we wait for the task to complete before moving onto the next.
+    required: false
+    default: false
+  wait_time:
+    description:
+      - Only applicable if wait is true.
+        This is the amount of time in seconds to wait
+    required: false
+    default: 600
+  wait_poll_interval:
+    description:
+      - The amount to time inbetween polling for task completion
+    required: false
+    default: 2
   action:
     description:
       - create, read(get), update or delete.
@@ -98,6 +114,7 @@ EXAMPLES = '''
     private_ipv4_base_address: 192.168.23.0
     private_ipv4_prefix_size: 24
     action: create
+    wait: yes
 # Read/Get a VLAN details
 - dimensiondata_vlan:
     region: na
@@ -105,6 +122,7 @@ EXAMPLES = '''
     network_domain: test_network
     name: my_vlan1
     action: read
+    wait: yes
 # Update a VLAN
 # VLAN ID is required to modify a VLAN.
 - dimensiondata_vlan:
@@ -115,6 +133,7 @@ EXAMPLES = '''
     name: my_vlan_1
     description: A test VLAN network, renamed.
     state: present
+    wait: yes
 # Delete a VLAN by name
 - dimensiondata_vlan:
     region: na
@@ -122,6 +141,7 @@ EXAMPLES = '''
     network_domain: test_network
     name: my_vlan_1
     action: delete
+    wait: no
 # Delete a VLAN by ID
 - dimensiondata_vlan:
     region: na
@@ -129,6 +149,7 @@ EXAMPLES = '''
     network_domain: test_network
     vlan_id: a2c6cccc-bbbb-aaaa-0000-000028bcc47c
     action: delete
+    wait: no
 '''
 
 RETURN = '''
@@ -172,16 +193,33 @@ def vlan_obj_to_dict(vlan):
     return vlan_d
 
 
+def wait_for_vlan_state(module, driver, vlan_id, state_to_wait_for):
+    try:
+        return driver.connection.wait_for_state(
+            state_to_wait_for, driver.ex_get_vlan,
+            module.params['wait_poll_interval'],
+            module.params['wait_time'], vlan_id
+        )
+    except DimensionDataAPIException as e:
+        module.fail_json(msg='Server did not reach % state in time: %s'
+                         % (state, e.msg))
+
+
 def create_vlan(module, driver, location, network_domain, name, description,
                 base_address, prefix_size):
     try:
         vlan = driver.ex_create_vlan(network_domain, name, base_address,
                                      description, prefix_size)
-        return vlan
     except DimensionDataAPIException as e:
         if e.code == 'NAME_NOT_UNIQUE':
-            return True
+            vlan = get_vlan(module, driver, location, network_domain, 'False',
+                            name)
+            return {'vlan': vlan, 'changed': False}
         module.fail_json(msg="Failed to create VLAN: %s" % e)
+    # Wait for it to become ready
+    if module.params['wait']:
+        vlan = wait_for_vlan_state(module, driver, vlan.id, 'NORMAL')
+    return vlan
 
 
 def get_vlan(module, driver, location, network_domain, vlan_id, name):
@@ -272,7 +310,10 @@ def main():
             action=dict(default='create', choices=['create', 'read', 'get',
                                                    'update', 'delete',
                                                    'expand']),
-            verify_ssl_cert=dict(required=False, default=True, type='bool')
+            verify_ssl_cert=dict(required=False, default=True, type='bool'),
+            wait=dict(required=False, default=False, type='bool'),
+            wait_time=dict(required=False, default=600, type='int'),
+            wait_poll_interval=dict(required=False, default=2, type='int')
         )
     )
 
@@ -310,12 +351,12 @@ def main():
         if name is False:
             module.fail_json(msg="'name' is a required argument when action" +
                                  " is 'create'")
-        vlan_obj = create_vlan(module, driver, location, network_domain, name,
-                               description, base_address, prefix_size)
-        if vlan_obj is True:
+        res = create_vlan(module, driver, location, network_domain, name,
+                          description, base_address, prefix_size)
+        vlan = vlan_obj_to_dict(res['vlan'])
+        if res['changed'] is False:
             module.exit_json(changed=False, msg="VLAN with name '%s'" % name +
-                             "already exists.")
-        vlan = vlan_obj_to_dict(vlan_obj)
+                             "already exists.", vlan=vlan)
         module.exit_json(changed=True, msg="Successfully created VLAN.",
                          vlan=vlan)
     elif action == 'read' or action == 'get':
