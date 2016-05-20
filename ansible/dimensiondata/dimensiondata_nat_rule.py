@@ -1,0 +1,244 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+#
+# Copyright (c) 2016 Dimension Data
+#
+# This module is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This software is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this software.  If not, see <http://www.gnu.org/licenses/>.
+#
+# Authors:
+#   - Aimon Bustardo <aimon.bustardo@dimensiondata.com>
+#
+from ansible.module_utils.basic import *
+from ansible.module_utils.dimensiondata import *
+try:
+    from libcloud.common.dimensiondata import DimensionDataAPIException
+    from libcloud.compute.types import Provider
+    from libcloud.compute.providers import get_driver
+    import libcloud.security
+    HAS_LIBCLOUD = True
+except:
+    HAS_LIBCLOUD = False
+
+# Get regions early to use in docs etc.
+dd_regions = get_dd_regions()
+
+
+DOCUMENTATION = '''
+---
+module: dimensiondata_nat
+short_description:
+    - Create, List, Get or Delete NAT rules.
+version_added: '2.1'
+author: 'Aimon Bustardo (@aimonb)'
+options:
+  region:
+    description:
+      - The target region.
+    choices: %s
+    default: na
+  location:
+    description:
+      - The target datacenter.
+    required: true
+  network_domain:
+    description:
+      - The target network name or ID.
+    required: true
+  internal_ip:
+    description:
+        - The Internal IPv4 address.
+    required: true
+  external_ip:
+    description:
+        - The public/external IPv4 address.
+    required: true
+    default: false
+  verify_ssl_cert:
+    description:
+      - Check that SSL certificate is valid.
+    required: true
+    default: true
+  action:
+    description:
+      - present, absent
+    choices: ['present', 'absent']
+    default: present
+''' % str(dd_regions)
+
+EXAMPLES = '''
+# Create NAT rule.
+- dimensiondata_load_balancer:
+    region: na
+    location: NA12
+    network_domain: test_network
+    internal_ip: 10.0.0.45
+    external_ip: 162.24.32.3
+    ensure: present
+# delete NAT rule.
+- dimensiondata_load_balancer:
+    region: na
+    location: NA12
+    network_domain: test_network
+    internal_ip: 10.0.0.45
+    external_ip: 162.24.32.3
+    ensure: absent
+'''
+
+RETURN = '''
+nat_rule:
+    description: Dictionary describing the NAT rule.
+    returned: On success when I(action) is 'present'.
+    type: dictionary
+    contains:
+        id:
+            description: NAT rule ID.
+            type: string
+            sample: "aaaaa000-a000-4050-a215-2808934ccccc"
+        external_ip:
+            description: External/public IP.
+            type: string
+            sample: "162.24.32.3"
+        internal_ip:
+            description: Internal/private IP.
+            type: string
+            sample: "10.0.0.45"
+        status:
+            description: Current status of NAT rule.
+            type: string
+            sample: NORMAL
+'''
+
+
+def get_nat_rule(module, client, network_domain, external_ip, internal_ip):
+    ext_in_use = 'External IP is not in use.'
+    int_in_use = 'Internal IP is not in use.'
+    try:
+        nat_rules = client.ex_list_nat_rules(network_domain)
+    except DimensionDataAPIException as e:
+        module.fail_json(msg="Unexpected API error: %s" % e)
+
+    rules = filter(lambda x: x.external_ip == external_ip
+                   and x.internal_ip == internal_ip, nat_rules)
+    if len(rules) > 0:
+        return rules[0]
+    # Search for rule both by internal and external IPs so we can discover
+    # which ones are in use
+    ext_rules = filter(lambda x: x.external_ip == external_ip, nat_rules)
+    int_rules = filter(lambda x: x.internal_ip == internal_ip, nat_rules)
+    if len(ext_rules) == 0 and len(int_rules) == 0:
+        return False
+    elif len(ext_rules) > 0 and len(int_rules) == 0:
+        extid = ext_rules[0].id
+        ext_in_use = "'external_ip' %s is " % external_ip + \
+                     "already in use in the NAT %s " % extid + \
+                     "for Network Domain %s" % network_domain
+    elif len(ext_rules) == 0 and len(int_rules) > 0:
+        intid = int_rules[0].id
+        int_in_use = "'internal_ip' %s is " % internal_ip + \
+                     "already in use in the NAT %s " % intid + \
+                     "for Network Domain %s" % network_domain
+    module.fail_json(msg="%s %s" % (ext_in_use, int_in_use))
+
+
+def nat_obj_to_dict(nat_obj):
+    return {'id': nat_obj.id, 'external_ip': nat_obj.external_ip,
+            'internal_ip': nat_obj.internal_ip, 'status': nat_obj.status}
+
+
+def check_out_of_range(net_domain, res):
+    if res == 'IP_ADDRESS_OUT_OF_RANGE':
+        module.fail_json("One or more of supplied IP address" +
+                         "is not associated with" +
+                         " domain %s." % net_domain.id +
+                         "Error: %s" % res)
+
+
+def main():
+    module = AnsibleModule(
+        argument_spec=dict(
+            region=dict(default='na', choices=dd_regions),
+            location=dict(required=True, type='str'),
+            network_domain=dict(required=True, type='str'),
+            external_ip=dict(required=True, type='str'),
+            internal_ip=dict(required=True, type='str'),
+            ensure=dict(default='present', choices=['present', 'absent']),
+            verify_ssl_cert=dict(required=False, default=True, type='bool')
+        )
+    )
+
+    if not HAS_LIBCLOUD:
+        module.fail_json(msg='libcloud is required for this module.')
+
+    # set short vars for readability
+    credentials = get_credentials()
+    if credentials is False:
+        module.fail_json(msg="User credentials not found")
+    user_id = credentials['user_id']
+    key = credentials['key']
+    region = 'dd-%s' % module.params['region']
+    location = module.params['location']
+    network_domain = module.params['network_domain']
+    external_ip = module.params['external_ip']
+    internal_ip = module.params['internal_ip']
+    verify_ssl_cert = module.params['verify_ssl_cert']
+    ensure = module.params['ensure']
+
+    # Instantiate client
+    libcloud.security.VERIFY_SSL_CERT = verify_ssl_cert
+    DimensionData = get_driver(Provider.DIMENSIONDATA)
+    client = DimensionData(user_id, key, region=region)
+
+    # Get Network Domain Object
+    net_domain = get_network_domain(client, network_domain, location)
+    if net_domain is False:
+        module.fail_json(msg="Network domain could not be found.")
+
+    # Try to find NAT rule
+    nat_rule = get_nat_rule(module, client, net_domain, external_ip,
+                            internal_ip)
+    # Process action
+    if ensure == 'present':
+        if nat_rule is False:
+            try:
+                res = client.ex_create_nat_rule(net_domain, internal_ip,
+                                                external_ip)
+            except DimensionDataAPIException as e:
+                module.fail_json(msg="Unexpected API error: %s" % e)
+            # Exit with error if IP address out of range
+            check_out_of_range(net_domain, res)
+            # Sucess
+            module.exit_json(changed=True, msg="Success.",
+                             nat_rule=nat_obj_to_dict(res))
+        else:
+            module.exit_json(changed=False, msg="Nat rule already exists.",
+                             nat_rule=nat_obj_to_dict(nat_rule))
+    elif ensure == 'absent':
+        if nat_rule is False:
+            module.exit_json(changed=False, msg="NAT rule does not exist.")
+        try:
+            res = client.ex_delete_nat_rule(nat_rule)
+        except DimensionDataAPIException as e:
+            module.fail_json(msg="Unexpected error when attempting to delete" +
+                                 " load balancer: %s" % e)
+        if res is True:
+            module.exit_json(changed=True, msg="NAT rule deleted.")
+        else:
+            module.fail_json(msg="Unexpected response while deleting NAT" +
+                                 " rule: %s" % str(res))
+    else:
+        fail_json(msg="Requested ensure was " +
+                  "'%s'. Status must be one of 'present', 'absent'." % ensure)
+
+if __name__ == '__main__':
+    main()
