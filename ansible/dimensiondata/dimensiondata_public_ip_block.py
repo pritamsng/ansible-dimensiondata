@@ -115,10 +115,10 @@ public_ip_block:
             description: Block ID.
             type: string
             sample: "8c787000-a000-4050-a215-280893411a7d"
-        base_ip:
-            description: First IP in block.
-            type: string
-            sample: "168.128.2.100"
+        addresses:
+            description: List of IP addresses in block.
+            type: list
+            sample: ["168.128.2.100", "192.168.2.101"]
         status:
             description: Status of IP block.
             type: string
@@ -131,7 +131,13 @@ public_ip_block:
 
 
 def ip_block_object_to_dict(block):
-    return {'id': block.id, 'base_ip': block.base_ip,
+    ip_r = block.base_ip.split('.')
+    last_quad = int(ip_r[3])
+    address_root = "%s.%s.%s." % (ip_r[0], ip_r[1], ip_r[2])
+    addresses = []
+    for i in range(int(block.size)):
+        addresses.append(address_root + str(last_quad + i))
+    return {'id': block.id, 'addresses': addresses,
             'status': block.status, 'node_location': block.location.id}
 
 
