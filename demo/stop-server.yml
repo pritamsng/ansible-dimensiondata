@@ -7,6 +7,7 @@
     tasks:
       - name: Shutdown host
         dimensiondata:
-          state: stopped
-          server_ids: '{{ server_ids }}'
+          ensure: stopped
+          nodes:
+            - '{{ server_ids }}'
           wait: yes

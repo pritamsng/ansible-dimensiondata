@@ -117,6 +117,26 @@ def get_network_domain(driver, locator, location):
         return False
 
 
+# ---------------------------------------------
+# Get a VLAN object by its name or id
+# ---------------------------------------------
+def get_vlan(driver, locator, location, network_domain):
+    if is_uuid(locator):
+        vlan_id = locator
+    else:
+        vlans = driver.ex_list_vlans(location=location,
+                                     network_domain=network_domain)
+        found_vlans = filter(lambda x: x.name == locator, vlans)
+        if len(found_vlans) > 0:
+            vlan_id = found_vlans[0].id
+        else:
+            return False
+    try:
+        return driver.ex_get_vlan(vlan_id)
+    except:
+        return False
+
+
 # ----------------------------------------
 # Get a locations MCP version
 # ----------------------------------------

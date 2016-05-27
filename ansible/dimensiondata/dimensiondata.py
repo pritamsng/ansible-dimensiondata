@@ -27,100 +27,77 @@ options:
       - The target region.
     choices: %s
     default: na
-  state:
+  ensure:
     description:
-      - the state you want the hosts to be in
+      - the state you want the hosts to be in.
     required: false
     default: present
     aliases: []
     choices: ['present', 'absent', 'running', 'stopped']
-  node_ids:
+  nodes:
     description:
-      - A list of server ids to work on
-    required: false
+      - A list of server ID or names to work on.
+    required: true
     default: null
-    aliases: ['server_id', 'server_ids', 'node_id']
-  name:
-    description:
-      - The name of the server you want to work on
-    required: false
-    default: null
-    aliases: []
+    aliases: ['servers']
   image:
     description:
-      - The image name to provision with
-    required: false
-    default: null
-    aliases: []
-  image_id:
-    description:
-      - The image_id to provisiong with
-    required: false
+      - The image name or ID to provision with.
+    required: true
     default: null
     aliases: []
   vlan:
     description:
-      - The name of the vlan to provision to
-    required: false
-    default: null
-    aliases: []
-  vlan_id:
-    description:
-      - The vlan_id to provision to
-    required: false
-    default: null
-    aliases: []
-  network:
-    description:
-      - The name of the network to provision to
-    required: false
-    default: null
-    aliases: []
-  network_id:
-    description:
-      - The network_id to provision to
-    required: false
+      - The name or ID of the vlan to provision to.
+    required: true
     default: null
     aliases: []
   network_domain:
     description:
-      - The name of the network domain to provision to
-    required: false
+      - The name or ID of the network domain to provision to.
+    required: true
     default: null
-    aliases: []
-  network_domain_id:
+    aliases: ['network']
+  location:
     description:
-      - The network_domain_id to provision to
-    required: false
-    default: null
-    aliases: []
+      - The target datacenter.
+    required: true
   admin_password:
     description:
-      - The administrator account password for a new server
+      - The administrator account password for a new server.
     required: false
     default: null
     aliases: []
   description:
     description:
-      - The description for the new node
+      - The description for the new node.
     required: false
     default: null
     aliases: []
   memory_gb:
     description:
-      - The amount of memory for the new host to have in Gb
+      - The amount of memory for the new host to have in GB.
     required: false
     default: null
     aliases: []
   unique_names:
     description:
-      - By default Dimension Data allows the same name for multiple servers
-        this will make sure we don't create a new server if the name
-        already exists
+      - > By default Dimension Data allows the same name for multiple servers
+          this will make sure we don't create a new server if the name
+          already exists.
     required: false
-    default: 'yes'
+    default: true
     aliases: []
-    choices: ['yes', 'no']
+    choices: [true, false]
+  operate_on_multiple:
+    description:
+      - > By default Dimension Data allows the same name for multiple servers
+          this will allow this module to operate on mulitple nodes/servers if
+          names are given instead of IDs. WARNING: This can be dangerous!!
+    required: false
+    default: false
+    aliases: []
+    choices: [true, false]
   verify_ssl_cert:
     description:
       - Check that SSL certificate is valid.
@@ -133,18 +110,19 @@ options:
     default: false
   wait_time:
     description:
-      - Only applicable if wait is true.
-        This is the amount of time in seconds to wait
+      - > Only applicable if wait is true. This is the amount of time in
+          seconds to wait.
     required: false
     default: 600
   wait_poll_interval:
     description:
-      - The amount to time inbetween polling for task completion
+      - The amount to time inbetween polling for task completion.
     required: false
     default: 2
 
 author:
     - "Jeff Dunham (@jadunham1)"
+    - "Aimon Bustardo (@aimonb)"
 ''' % str(dd_regions)
 
 EXAMPLES = '''
@@ -156,54 +134,87 @@ EXAMPLES = '''
 # Basic create node example
 
 - dimensiondata:
-    vlan_id: '{{ vlan_id }}'
-    network_domain_id: '{{ network_domain_id }}'
+    vlan: '{{ vlan }}'
+    network_domain: '{{ network_domain_id }}'
     image: 'RedHat 7 64-bit 2 CPU'
-    name: ansible-test-image
+    nodes:
+      - ansible-test-image
     admin_password: fakepass
 
 # Ensure servers are running and wait for it to come up
 - dimensiondata:
-    state: running
-    node_ids: '{{ node_ids }}'
+    vlan: '{{ vlan }}'
+    network_domain: '{{ network_domain_id }}'
+    ensure: running
+    nodes:
+      - my_node_1
+      - my_node_2
     wait: yes
 
 # Ensure servers are stopped and wait for them to stop
-
 - dimensiondata:
-    state: stopped
-    node_ids: '{{ node_ids }}'
+    vlan: '{{ vlan }}'
+    network_domain: '{{ network_domain_id }}'
+    ensure: stopped
+    nodes:
+      - my_node_1
+      - {{ node_id }}
     wait: yes
+
+# Destroy servers
+- dimensiondata:
+    vlan: '{{ vlan }}'
+    network_domain: '{{ network_domain_id }}'
+    ensure: absent
+    nodes:
+      - my_node_1
+      - my_node_2
+
+# ---------------
+# Working with
+# non unique names
+# ---------------
+
+# Create nodes
+- dimensiondata:
+    vlan: '{{ vlan }}'
+    network_domain: '{{ network_domain_id }}'
+    image: 'RedHat 7 64-bit 2 CPU'
+    nodes:
+      - ansible-test-image1
+      - ansible-test-image2
+      - ansible-test-image1
+      - ansible-test-image2
+    admin_password: fakepass
+    unique_names: false
+    operate_on_multiple: true
+
+# Shutdown nodes
+- dimensiondata:
+    vlan: '{{ vlan }}'
+    network_domain: '{{ network_domain_id }}'
+    nodes:
+      - ansible-test-image1
+      - ansible-test-image2
+      - ansible-test-image1
+      - ansible-test-image2
+    ensure: stopped
+    unique_names: false
+    operate_on_multiple: true
+
+# Delete nodes
+- dimensiondata:
+    vlan: '{{ vlan }}'
+    network_domain: '{{ network_domain_id }}'
+    nodes:
+      - ansible-test-image1
+      - ansible-test-image2
+      - ansible-test-image1
+      - ansible-test-image2
+    ensure: absent
+    unique_names: false
+    operate_on_multiple: true
 '''
-
-
-def module_key_die_if_none(module, key):
-    v = module.params[key]
-    if v is None:
-        module.fail_json(msg='Unable to load %s' % key)
-    return v
-
-
-def get_image_id(client, module, location):
-    if module.params['image_id'] is not None:
-        return module.params['image_id']
-    if module.params['image'] is None:
-        module.fail_json(msg='Need to specify either an image_id or'
-                             'image to create a node')
-
-    image_match_name = module.params['image']
-    images = client.list_images(location)
-    images.extend(client.ex_list_customer_images(location))
-
-    matched_images = list(filter(lambda x: x.name == image_match_name, images))
-
-    if len(matched_images) < 1:
-        module.fail_json(msg='No images matched this name')
-    elif len(matched_images) > 1:
-        module.fail_json(msg='Multile images matched this please'
-                             ' specify a single unique image id')
-
-    return matched_images[0].id
 
 
 def node_to_node_obj(node):
@@ -214,41 +225,115 @@ def node_to_node_obj(node):
     node_obj['private_ipv4'] = node.private_ips
     node_obj['public_ipv4'] = node.public_ips
     node_obj['location'] = node.extra['datacenterId']
-    node_obj['state'] = node.state
+    node_obj['state'] = node.state.lower()
     # Password object will only be set if the password is randomly generated
     if 'password' in node.extra:
         node_obj['password'] = node.extra['password']
     return node_obj
 
 
-def create_node(client, module):
-    changed = False
-    name = module_key_die_if_none(module, 'name')
-    if module.params['unique_names']:
-        node_list = client.list_nodes(ex_name=name)
-        if len(node_list) >= 1:
-            return (changed, [node_to_node_obj(node) for node in node_list])
+# ---------------------------------------------
+# Get Servers/Nodes object by name or id
+# ---------------------------------------------
+def get_nodes(client, module):
+    nodes_dict = {}
+    location = module.params['location']
+    nodes = list(set(module.params['nodes']))
+    for node in nodes:
+        if is_uuid(node):
+            matched_nodes = [node]
+        else:
+            nodes = client.list_nodes(location)
+            matched_nodes = list(filter(lambda x: x.name == node,
+                                        nodes))
+        if len(matched_nodes) < 1:
+            nodes_dict[node] = {'id': [], 'name': [], 'node': []}
+        elif len(matched_nodes) >= 1:
+            # Build name, id list
+            nodes_dict[node] = {'id': [], 'name': [], 'node': []}
+            for m_node in matched_nodes:
+                nodes_dict[node]['id'].append(m_node.id)
+                nodes_dict[node]['name'].append(m_node.name)
+                nodes_dict[node]['node'].append(m_node)
+    return nodes_dict
 
-    vlan_id = module_key_die_if_none(module, 'vlan_id')
+
+def get_all_nodes(client, module):
+    location = module.params['location']
+    domain = module.params['network_domain']
+    try:
+        return client.list_nodes(ex_location=location,
+                                 ex_network_domain=domain)
+    except DimensionDataAPIException as e:
+        module.fail_json(msg="Unexpected error while retriving existing " +
+                             "nodes: %s" % e)
+
+
+# ---------------------------------------------
+# Get a Image object by its name or id
+# ---------------------------------------------
+def get_image(client, module, location):
+    if is_uuid(module.params['image']):
+        image_id = module.params['image']
+    else:
+        image_match_name = module.params['image']
+        images = client.list_images(location)
+        images.extend(client.ex_list_customer_images(location))
+
+        matched_images = list(filter(lambda x: x.name == image_match_name,
+                              images))
+
+        if len(matched_images) < 1:
+            module.fail_json(msg='No images matched this name')
+        elif len(matched_images) > 1:
+            module.fail_json(msg='Multile images matched this please'
+                                 ' specify a single unique image id')
+        image_id = matched_images[0].id
+    try:
+        image = client.ex_get_image_by_id(image_id)
+    except DimensionDataAPIException as e:
+        module.fail_json(msg="Unexpected API error: %s" % e)
+    return image
+
+
+def validate_unique_names(client, module):
+    nodes = module.params['nodes']
+    dupes = False
+    # Check for dupes
+    if len(nodes) != len(list(set(nodes))):
+        dupes = True
+    if module.params['unique_names'] is True and dupes is True:
+        module.fail_json(msg="Argument 'unique_names' is set to True " +
+                             "but duplicate names are present.")
+    if module.params['operate_on_multiple'] is False and dupes is True:
+        module.fail_json(msg="Argument 'operate_on_multiple' is set to False" +
+                             " but duplicate names are present.")
+    return True
+
+
+def create_node(client, module, name, wait):
     admin_password = module.params['admin_password']
-    network_id = module.params['network_id']
-    network_domain_id = module.params['network_domain_id']
-    if not network_domain_id and not network_id:
-        module.fail_json(msg='Need either a network_id (MCP1.0) or '
-                             'network_domain_id (MCP_2.0) to create a server')
-
-    dd_vlan = client.ex_get_vlan(vlan_id)
-    image_id = get_image_id(client, module, dd_vlan.location.id)
-    node = client.create_node(name, image_id, admin_password,
-                              module.params['description'],
-                              ex_network=network_id,
-                              ex_network_domain=network_domain_id,
-                              ex_vlan=vlan_id,
-                              ex_memory_gb=module.params['memory_gb'])
-    if module.params['wait']:
+    network_domain = get_network_domain(client,
+                                        module.params['network_domain'],
+                                        module.params['location'])
+    dd_vlan = get_vlan(client, module.params['vlan'],
+                       module.params['location'], network_domain)
+    image = get_image(client, module, dd_vlan.location.id)
+    if get_mcp_version == '1.0':
+        node = client.create_node(name, image.id, admin_password,
+                                  module.params['description'],
+                                  ex_network=network_domain.id,
+                                  ex_vlan=dd_vlan.id,
+                                  ex_memory_gb=module.params['memory_gb'])
+    else:
+        node = client.create_node(name, image.id, admin_password,
+                                  module.params['description'],
+                                  ex_network_domain=network_domain.id,
+                                  ex_vlan=dd_vlan.id,
+                                  ex_memory_gb=module.params['memory_gb'])
+    if wait is True:
         node = wait_for_server_state(client, module, node.id, 'running')
-    node_obj = node_to_node_obj(node)
-    return (True, [node_obj])
+    return node
 
 
 def wait_for_server_state(client, module, server_id, state_to_wait_for):
@@ -259,37 +344,123 @@ def wait_for_server_state(client, module, server_id, state_to_wait_for):
             module.params['wait_time'], server_id
         )
     except DimensionDataAPIException as e:
-        module.fail_json(msg='Server did not reach % state in time: %s'
-                         % (state, e.msg))
+        module.fail_json(msg='Server did not reach %s state in time: %s' %
+                             (state_to_wait_for, e.msg))
 
 
-def stoporstart_servers(client, module, desired_state):
+def start_stop_server(client, module, action, node, wait):
+    err = "Failed to %s node '%s':" % (action, node.id)
+    res = False
+    try:
+        if action == 'stop' or action == 'shutdown':
+            res = client.ex_shutdown_graceful(node)
+        elif action == 'start' or action == 'boot':
+            res = client.ex_start_node(node)
+    except DimensionDataAPIException as e:
+        module.fail_json(msg=err + e)
+    if res is False:
+        module.fail_json(msg=err + e)
+    try:
+        quiesced_node = client.ex_get_node_by_id(node.id)
+    except DimensionDataAPIException as e:
+        module.fail_json(msg="Failed to get node details after %s " % action +
+                         "action. However server did %s." % action +
+                         "Error: %s" % e)
+    return {'changed': True, "node": quiesced_node}
+
+
+def quiesce_servers_states(client, module, nodes_dict):
     changed = False
+    wait = module.params['wait']
+    desired_state = module.params['ensure']
+    quiesced_nodes = []
+    for key, node in nodes_dict.iteritems():
+        # Listed number of this named node
+        req_node_count = module.params['nodes'].count(key)
 
-    servers = module_key_die_if_none(module, 'node_ids')
-    node_list = []
-    for server in servers:
-        node = client.ex_get_node_by_id(server)
-        if node.state == 'terminated':
-            node.state = 'stopped'
-        if desired_state != node.state:
-            if desired_state == 'running':
-                client.ex_start_node(node)
-                changed = True
-            elif desired_state == 'stopped':
-                client.ex_shutdown_graceful(node)
-                changed = True
-            if module.params['wait']:
-                node = wait_for_server_state(client, module,
-                                             server, desired_state)
-            else:
-                node = client.ex_get_node_by_id(server)
-        node_list.append(node_to_node_obj(node))
+        # Existing number of this named node
+        exi_node_count = len(node['node'])
 
-    return (changed, node_list)
+        # Get difference
+        needed_num_nodes = 0
+        if req_node_count > exi_node_count:
+            needed_num_nodes = req_node_count - exi_node_count
+
+        # Quiesce
+        if desired_state in ('present', 'running', 'stopped'):
+            # Die if node/server does not exist and needed args are not present
+            if needed_num_nodes > 0:
+                module_key_die_if_none(module, 'admin_password')
+                module_key_die_if_none(module, 'image')
+            pre_wait = wait
+            if desired_state == 'stopped':
+                pre_wait = True
+            try:
+                # Launch missing
+                for i in range(needed_num_nodes):
+                    quiesced_nodes.append(
+                        node_to_node_obj(create_node(client, module, key,
+                                                     pre_wait)))
+                    changed = True
+            except DimensionDataAPIException as e:
+                module.fail_json(msg="Error while creating node '%s': %s" %
+                                 (key, e))
+            if desired_state == 'stopped':
+                for n in node['node']:
+                    if n.state.lower() not in ('stopped', 'terminated'):
+                        res = start_stop_server(client, module, 'shutdown', n,
+                                                wait)
+                        changed = True
+                        quiesced_nodes.append(node_to_node_obj(res['node']))
+                    else:
+                        quiesced_nodes.append(node_to_node_obj(n))
+            elif desired_state == 'running':
+                for n in node['node']:
+                    if n.state.lower() in ('stopped', 'terminated'):
+                        res = start_stop_server(client, module, 'boot', n,
+                                                wait)
+                        changed = True
+                        quiesced_nodes.append(node_to_node_obj(res['node']))
+                    else:
+                        quiesced_nodes.append(node_to_node_obj(n))
+
+        elif desired_state == 'absent' and len(node['node']) == 0:
+            changed = False
+            for n in node['node']:
+                quiesced_nodes.append(node_to_node_obj(n))
+        elif desired_state == 'absent' and len(node['node']) > 0:
+            if req_node_count < exi_node_count:
+                module.fail_json(msg="UNSAFE OPERATION DETECTED: More nodes " +
+                                     "exist with a listed name then were " +
+                                     "specified.")
+            for n in node['node']:
+                try:
+                    if n.state.lower() == 'starting':
+                        wait_for_server_state(client, module, n.id,
+                                              'terminated')
+                    if n.state.lower() != 'stopped':
+                        client.ex_power_off(n)
+                        wait_for_server_state(client, module, n.id,
+                                              'stopped')
+                    client.destroy_node(n)
+                    changed = True
+                except DimensionDataAPIException as e:
+                    module.fail_json(msg="Error while destroying node " +
+                                     "'%s' in state '%s': " % (n.id, n.state) +
+                                     "%s" % e)
+                quiesced_nodes.append(node_to_node_obj(n))
+    return {'changed': changed, 'nodes': quiesced_nodes}
+
+
+def module_key_die_if_none(module, key):
+    v = module.params[key]
+    if v is None:
+        module.fail_json(msg='Unable to load %s' % key)
+    return v
 
 
 def core(module):
+    changed = False
     credentials = get_credentials()
     if credentials is False:
         module.fail_json(msg="User credentials not found")
@@ -302,38 +473,40 @@ def core(module):
     libcloud.security.VERIFY_SSL_CERT = verify_ssl_cert
     DimensionData = get_driver(Provider.DIMENSIONDATA)
     client = DimensionData(user_id, key, region=region)
-    state = module.params['state']
-    if state == 'stopped' or state == 'running':
-        return stoporstart_servers(client, module, state)
-    elif state == 'present':
-        return create_node(client, module)
-    else:
-        module.fail_json(msg='Unhandled state transition')
+
+    validate_unique_names(client, module)
+
+    # Get nodes/servers details
+    # Return: {<module.params['nodes'][n]>: {'id': [], 'name': [], 'node': []}}
+    nodes_dict = get_nodes(client, module)
+
+    res = quiesce_servers_states(client, module, nodes_dict)
+    quiesced_nodes = res['nodes']
+    changed = res['changed']
+    # Exit with nodes details
+    module.exit_json(changed=changed, msg="Successfully quiesced nodes.",
+                     nodes=quiesced_nodes)
 
 
 def main():
     module = AnsibleModule(
         argument_spec=dict(
-            state=dict(default='present', choices=['present',
-                                                   'absent',
-                                                   'running',
-                                                   'stopped']),
-            node_ids=dict(type='list', aliases=['server_id',
-                                                'server_ids',
-                                                'node_id']),
-            name=dict(),
+            ensure=dict(default='present', choices=['present',
+                                                    'absent',
+                                                    'running',
+                                                    'stopped']),
+            nodes=dict(type='list', aliases=['server_id',
+                                             'server_ids',
+                                             'node_id']),
             image=dict(),
-            image_id=dict(),
             vlan=dict(),
-            vlan_id=dict(),
-            network_id=dict(),
-            network=dict(),
-            network_domain_id=dict(),
             network_domain=dict(),
             admin_password=dict(),
             description=dict(),
             memory_gb=dict(),
-            unique_names=dict(type='bool', default='no'),
+            unique_names=dict(type='bool', default=True),
+            operate_on_multiple=dict(type='bool', default=False),
+            location=dict(required=True, type='str'),
             region=dict(default='na', choices=dd_regions),
             verify_ssl_cert=dict(required=False, default=True, type='bool'),
             wait=dict(required=False, default=False, type='bool'),
@@ -345,11 +518,9 @@ def main():
         module.fail_json(msg='libcloud >= 1.0.0pre required for this module')
 
     try:
-        (changed, data) = core(module)
+        core(module)
     except (Exception), e:
         module.fail_json(msg=str(e))
-
-    module.exit_json(changed=changed, instances=data)
 
 
 if __name__ == '__main__':
