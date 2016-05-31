@@ -201,7 +201,7 @@ def wait_for_vlan_state(module, driver, vlan_id, state_to_wait_for):
             module.params['wait_time'], vlan_id
         )
     except DimensionDataAPIException as e:
-        module.fail_json(msg='Server did not reach % state in time: %s'
+        module.fail_json(msg='VLAN did not reach % state in time: %s'
                          % (state, e.msg))
 
 
@@ -219,7 +219,7 @@ def create_vlan(module, driver, location, network_domain, name, description,
     # Wait for it to become ready
     if module.params['wait']:
         vlan = wait_for_vlan_state(module, driver, vlan.id, 'NORMAL')
-    return vlan
+    return {'vlan': vlan, 'changed': True}
 
 
 def get_vlan(module, driver, location, network_domain, vlan_id, name):

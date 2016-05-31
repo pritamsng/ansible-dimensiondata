@@ -70,6 +70,22 @@ options:
       - Check that SSL certificate is valid.
     required: false
     default: true
+  wait:
+    description:
+      - Should we wait for the task to complete before moving onto the next.
+    required: false
+    default: false
+  wait_time:
+    description:
+      - Only applicable if wait is true.
+        This is the amount of time in seconds to wait
+    required: false
+    default: 600
+  wait_poll_interval:
+    description:
+      - The amount to time inbetween polling for task completion
+    required: false
+    default: 2
   state:
     description:
       - Should the resource be present or absent.
@@ -181,6 +197,8 @@ def create_network(module, driver, mcp_version, location,
                                                   description=description)
     except DimensionDataAPIException as e:
         module.fail_json(msg="Failed to create new network: %s" % str(e))
+    if module.params['wait'] is True:
+        wait_for_network_state(module, driver, res.id, 'NORMAL')
     msg = "Created network %s in %s" % (name, location)
     network = network_obj_to_dict(res, mcp_version)
     module.exit_json(changed=True, msg=msg, network=network)
@@ -202,6 +220,18 @@ def delete_network(module, driver, matched_network, mcp_version):
         module.fail_json(msg="Failed to delete network: %s" % str(e))
 
 
+def wait_for_network_state(module, driver, net_id, state_to_wait_for):
+    try:
+        return driver.connection.wait_for_state(
+            state_to_wait_for, driver.ex_get_network_domain,
+            module.params['wait_poll_interval'],
+            module.params['wait_time'], net_id
+        )
+    except DimensionDataAPIException as e:
+        module.fail_json(msg='Network did not reach % state in time: %s'
+                         % (state, e.msg))
+
+
 def main():
     module = AnsibleModule(
         argument_spec=dict(
@@ -212,6 +242,9 @@ def main():
             service_plan=dict(default='ADVANCED', choices=['ADVANCED',
                               'ESSENTIALS']),
             state=dict(default='present', choices=['present', 'absent']),
+            wait=dict(required=False, default=False, type='bool'),
+            wait_time=dict(required=False, default=600, type='int'),
+            wait_poll_interval=dict(required=False, default=2, type='int'),
             verify_ssl_cert=dict(required=False, default=True, type='bool')
         )
     )

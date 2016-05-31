@@ -80,6 +80,16 @@ options:
     required: false
     default: null
     aliases: []
+  additional_nics_vlan:
+    description: List of additional NICs by VLAN.
+    required: false
+    default: null
+    aliases: []
+  additional_nics_ipv4:
+    description: List of additional NICs by ipv4 address.
+    required: false
+    default: null
+    aliases: []
   unique_names:
     description:
       - > By default Dimension Data allows the same name for multiple servers
@@ -326,11 +336,15 @@ def create_node(client, module, name, wait):
                                   ex_vlan=dd_vlan.id,
                                   ex_memory_gb=module.params['memory_gb'])
     else:
+        anv = module.params['additional_nics_vlan']
+        ani = module.params['additional_nics_ipv4']
         node = client.create_node(name, image.id, admin_password,
                                   module.params['description'],
                                   ex_network_domain=network_domain.id,
                                   ex_vlan=dd_vlan.id,
-                                  ex_memory_gb=module.params['memory_gb'])
+                                  ex_memory_gb=module.params['memory_gb'],
+                                  ex_additional_nics_vlan=anv,
+                                  ex_additional_nics_ipv4=ani)
     if wait is True:
         node = wait_for_server_state(client, module, node.id, 'running')
     return node
@@ -414,7 +428,7 @@ def quiesce_servers_states(client, module, nodes_dict):
                         quiesced_nodes.append(node_to_node_obj(res['node']))
                     else:
                         quiesced_nodes.append(node_to_node_obj(n))
-            elif desired_state == 'running':
+            elif desired_state in ('running', 'present'):
                 for n in node['node']:
                     if n.state.lower() in ('stopped', 'terminated'):
                         res = start_stop_server(client, module, 'boot', n,
@@ -501,13 +515,18 @@ def main():
             image=dict(),
             vlan=dict(),
             network_domain=dict(),
+            location=dict(required=True, type='str'),
             admin_password=dict(),
             description=dict(),
             memory_gb=dict(),
-            unique_names=dict(type='bool', default=True),
-            operate_on_multiple=dict(type='bool', default=False),
-            location=dict(required=True, type='str'),
+            additional_nics_vlan=dict(required=False, default=None,
+                                      type='list'),
+            additional_nics_ipv4=dict(required=False, default=None,
+                                      type='list'),
+            operate_on_multiple=dict(required=False, default=False,
+                                     type='bool'),
             region=dict(default='na', choices=dd_regions),
+            unique_names=dict(required=False, default=True, type='bool'),
             verify_ssl_cert=dict(required=False, default=True, type='bool'),
             wait=dict(required=False, default=False, type='bool'),
             wait_time=dict(required=False, default=600, type='int'),
