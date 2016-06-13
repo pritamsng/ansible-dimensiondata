@@ -16,7 +16,7 @@ dd_regions = get_dd_regions()
 
 DOCUMENTATION = '''
 ---
-module: didata
+module: dimensiondata_compute
 short_description: create, terminate, start or stop an server in dimensiondata
 description:
     - Creates, terminates, starts or stops servers in the Dimension Data Cloud
@@ -77,6 +77,16 @@ options:
   memory_gb:
     description:
       - The amount of memory for the new host to have in GB.
+    required: false
+    default: null
+    aliases: []
+  primary_dns:
+    description: Primary DNS server IP or FQDN.
+    required: false
+    default: null
+    aliases: []
+  secondary_dns:
+    description: Secondary DNS server IP or FQDN.
     required: false
     default: null
     aliases: []
@@ -143,7 +153,7 @@ EXAMPLES = '''
 
 # Basic create node example
 
-- dimensiondata:
+- dimensiondata_compute:
     vlan: '{{ vlan }}'
     network_domain: '{{ network_domain_id }}'
     image: 'RedHat 7 64-bit 2 CPU'
@@ -152,7 +162,7 @@ EXAMPLES = '''
     admin_password: fakepass
 
 # Ensure servers are running and wait for it to come up
-- dimensiondata:
+- dimensiondata_compute:
     vlan: '{{ vlan }}'
     network_domain: '{{ network_domain_id }}'
     ensure: running
@@ -162,7 +172,7 @@ EXAMPLES = '''
     wait: yes
 
 # Ensure servers are stopped and wait for them to stop
-- dimensiondata:
+- dimensiondata_compute:
     vlan: '{{ vlan }}'
     network_domain: '{{ network_domain_id }}'
     ensure: stopped
@@ -172,7 +182,7 @@ EXAMPLES = '''
     wait: yes
 
 # Destroy servers
-- dimensiondata:
+- dimensiondata_compute:
     vlan: '{{ vlan }}'
     network_domain: '{{ network_domain_id }}'
     ensure: absent
@@ -186,7 +196,7 @@ EXAMPLES = '''
 # ---------------
 
 # Create nodes
-- dimensiondata:
+- dimensiondata_compute:
     vlan: '{{ vlan }}'
     network_domain: '{{ network_domain_id }}'
     image: 'RedHat 7 64-bit 2 CPU'
@@ -197,10 +207,12 @@ EXAMPLES = '''
       - ansible-test-image2
     admin_password: fakepass
     unique_names: false
+    primary_dns: 4.2.2.1
+    secondary_dns: 8.8.8.8
     operate_on_multiple: true
 
 # Shutdown nodes
-- dimensiondata:
+- dimensiondata_compute:
     vlan: '{{ vlan }}'
     network_domain: '{{ network_domain_id }}'
     nodes:
@@ -213,7 +225,7 @@ EXAMPLES = '''
     operate_on_multiple: true
 
 # Delete nodes
-- dimensiondata:
+- dimensiondata_compute:
     vlan: '{{ vlan }}'
     network_domain: '{{ network_domain_id }}'
     nodes:
@@ -329,25 +341,29 @@ def create_node(client, module, name, wait):
                                         module.params['location'])
     if not network_domain:
         module.fail_json(msg="Network Domain %s not found in location %s" %
-                          (module.params["network_domain"],
-                           module.params["location"]))
+                         (module.params["network_domain"],
+                          module.params["location"]))
 
     dd_vlan = get_vlan(client, module.params['vlan'],
                        module.params['location'], network_domain)
 
     if not dd_vlan:
-        module.fail_json(msg="VLAN ID %s not found in location %s, " \
+        module.fail_json(msg="VLAN ID %s not found in location %s, " +
                          "network domain %s" % (module.params["vlan"],
                                                 module.params["location"],
                                                 network_domain))
 
     image = get_image(client, module, dd_vlan.location.id)
+    pri_dns = module.params['primary_dns']
+    sec_dns = module.params['secondary_dns']
     if get_mcp_version == '1.0':
         node = client.create_node(name, image.id, admin_password,
                                   module.params['description'],
                                   ex_network=network_domain.id,
                                   ex_vlan=dd_vlan.id,
-                                  ex_memory_gb=module.params['memory_gb'])
+                                  ex_memory_gb=module.params['memory_gb'],
+                                  ex_primary_dns=pri_dns,
+                                  ex_secondary_dns=sec_dns)
     else:
         anv = module.params['additional_nics_vlan']
         ani = module.params['additional_nics_ipv4']
@@ -356,6 +372,8 @@ def create_node(client, module, name, wait):
                                   ex_network_domain=network_domain.id,
                                   ex_vlan=dd_vlan.id,
                                   ex_memory_gb=module.params['memory_gb'],
+                                  ex_primary_dns=pri_dns,
+                                  ex_secondary_dns=sec_dns,
                                   ex_additional_nics_vlan=anv,
                                   ex_additional_nics_ipv4=ani)
     if wait is True:
@@ -532,6 +550,10 @@ def main():
             admin_password=dict(),
             description=dict(),
             memory_gb=dict(),
+            primary_dns=dict(required=False, default=None,
+                             type='list'),
+            secondary_dns=dict(required=False, default=None,
+                               type='list'),
             additional_nics_vlan=dict(required=False, default=None,
                                       type='list'),
             additional_nics_ipv4=dict(required=False, default=None,

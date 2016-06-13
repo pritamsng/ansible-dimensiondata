@@ -6,7 +6,7 @@
         - '9f8b5428-bac3-4cf9-adda-62f57fb38671'
     tasks:
       - name: Shutdown host
-        dimensiondata:
+        dimensiondata_compute:
           ensure: stopped
           nodes:
             - '{{ server_ids }}'

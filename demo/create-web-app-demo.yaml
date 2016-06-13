@@ -1,0 +1,183 @@
+---
+- hosts: 127.0.0.1
+  connection: local
+  vars:
+    network_name: CHANGEME
+    password: CHANGEME123!
+    region: CHANGEME
+    location: CHANGEME
+  tasks:
+# Create Network
+    - name: Create network
+      dimensiondata_network:
+        region: "{{region}}"
+        location: "{{location}}"
+        name: "{{network_name}}"
+        wait: true
+      register: network
+# Create web VLAN
+    - name: Create VLAN
+      dimensiondata_vlan:
+        region: "{{region}}"
+        location: "{{location}}"
+        network_domain: "{{network_name}}"
+        name: ansible-demo
+        description: A test VLANd Network.
+        private_ipv4_base_address: '10.1.1.0'
+        private_ipv4_prefix_size: 24
+        action: create
+        wait: yes
+      register: vlan
+# Create host 1
+    - name: Create host 1
+      dimensiondata_compute:
+        ensure: present
+        vlan: "{{ vlan['vlan']['id'] }}"
+        network_domain: "{{ network['network']['id'] }}"
+        location: "{{location}}"
+        description: 'server1'
+        image: 'CentOS 6 64-bit 2 CPU'
+        nodes:
+          - server1
+        unique_names: yes
+        admin_password: "{{password}}"
+        primary_dns: 4.2.2.2
+        secondary_dns: 8.8.8.8
+        wait: no
+      register: host1
+# Create host 2
+    - name: Create host 2
+      dimensiondata_compute:
+        ensure: present
+        vlan: "{{ vlan['vlan']['id'] }}"
+        network_domain: "{{ network['network']['id'] }}"
+        location: "{{location}}"
+        description: 'server2'
+        image: 'CentOS 6 64-bit 2 CPU'
+        nodes:
+          - server2
+        unique_names: yes
+        admin_password: "{{password}}"
+        wait: yes
+      register: host2
+# Add public IP block 1
+    - name: Add public IP block 1
+      dimensiondata_public_ip_block:
+        region: "{{region}}"
+        location: "{{location}}"
+        network_domain: "{{ network['network']['id'] }}"
+        action: add
+      register: pub_ips1
+# Add public IP block 1
+    - name: Add public IP block 2
+      dimensiondata_public_ip_block:
+        region: "{{region}}"
+        location: "{{location}}"
+        network_domain: "{{ network['network']['id'] }}"
+        action: add
+      register: pub_ips2
+# Create load balancer
+    - name: Create Load Balancer
+      dimensiondata_load_balancer:
+        region: "{{region}}"
+        location: "{{location}}"
+        network_domain: "{{ network['network']['id'] }}"
+        name: web_lb01
+        port: 80
+        protocol: http
+        members:
+            - name: server1
+              port: 80
+              ip: "{{ host1['nodes'][0]['private_ipv4'][0] }}"
+            - name: server2
+              port: 80
+              ip: "{{ host2['nodes'][0]['private_ipv4'][0] }}"
+        ensure: present
+      register: lb
+# Create NAT Rules
+    - name: Create NAT rule 1
+      dimensiondata_nat_rule:
+        region: "{{region}}"
+        location: "{{location}}"
+        network_domain: "{{network_name}}"
+        internal_ip: "{{ host1['nodes'][0]['private_ipv4'][0] }}"
+        external_ip: "{{ pub_ips2['public_ip_block']['addresses'][0] }}"
+        ensure: present
+    - name: Create NAT rule 2
+      dimensiondata_nat_rule:
+        region: "{{region}}"
+        location: "{{location}}"
+        network_domain: "{{network_name}}"
+        internal_ip: "{{ host2['nodes'][0]['private_ipv4'][0] }}"
+        external_ip: "{{ pub_ips2['public_ip_block']['addresses'][1] }}"
+        ensure: present
+# Create Firewall rules
+    - name: Create HTTP firewall rule
+      dimensiondata_firewall:
+        region: "{{region}}"
+        location: "{{location}}"
+        network_domain: "{{ network['network']['id'] }}"
+        name: allow_http
+        state: enabled
+        action: ACCEPT_DECISIVELY
+        ip_version: IPv4
+        protocol: TCP
+        source: ANY
+        source_port: ANY
+        destination: "{{ lb['load_balancer']['ip'] }}"
+        destination_port: 80
+        position: LAST
+    - name: Allow SSH
+      dimensiondata_firewall:
+        region: "{{region}}"
+        location: "{{location}}"
+        network_domain: "{{ network['network']['id'] }}"
+        name: allow_ssh
+        state: enabled
+        action: ACCEPT_DECISIVELY
+        ip_version: IPv4
+        protocol: TCP
+        source: ANY
+        source_port: ANY
+        destination: ANY
+        destination_port: 22
+        position: LAST
+    - name: add host 1
+      add_host: hostname="{{ hostvars['127.0.0.1']['pub_ips2']['public_ip_block']['addresses'][0] }}"
+    - name: add host 2
+      add_host: hostname="{{ hostvars['127.0.0.1']['pub_ips2']['public_ip_block']['addresses'][1] }}"
+# Deploy web app from git to LB members
+- user: root
+  vars:
+    webservers: "{{ hostvars['127.0.0.1']['pub_ips2']['public_ip_block']['addresses'][0] }},{{ hostvars['127.0.0.1']['pub_ips2']['public_ip_block']['addresses'][1] }}"
+  hosts: "{{ webservers }}"
+  tasks:
+# Install packages
+    - name: install_git
+      yum: name=git state=latest
+    - name: install_apache
+      yum: name=httpd state=latest
+      register: apache_package
+    - name: install php
+      yum: name=php state=latest
+      register: php_package
+# Remove welcome.conf
+    - name: remove_weclome.conf
+      file: path=/etc/httpd/conf.d/welcome.conf state=absent
+      register: welcome_file
+      notify: restart_apache
+# Restart apache
+    - name: restart_apache
+      command: service httpd restart
+      when: (welcome_file.changed) or
+            (apache_package.changed) or
+            (php_package.changed)
+# Start services
+    - service: name=httpd state=started enabled=yes
+# Deploy from github
+    - git: repo=https://github.com/NexusIS/simple-lb-demo.git
+           dest=/var/www/html
+           version=HEAD
+      notify: restart_apache
+# Disable IPTables
+    - service: name=iptables state=stopped enabled=no
