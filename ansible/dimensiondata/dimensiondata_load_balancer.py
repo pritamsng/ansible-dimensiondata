@@ -286,7 +286,18 @@ def main():
             module.exit_json(changed=False, msg="Load balancer with name " +
                              "%s does not exist" % name)
         try:
+            pool_id = balancer.extra.get('pool_id')
+            if pool_id:
+                pool = lb_driver.ex_get_pool(pool_id)
+
             res = lb_driver.destroy_balancer(balancer)
+
+            if pool:
+                members = lb_driver.ex_get_pool_members(pool_id)
+                for member in members:
+                    lb_driver.ex_destroy_pool_member(member, destroy_node=True)
+                lb_driver.ex_destroy_pool(pool)
+
             module.exit_json(changed=True, msg="Load balancer deleted. " +
                              "Status: %s" % res)
         except DimensionDataAPIException as e:
